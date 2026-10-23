@@ -36,7 +36,9 @@ REQUIRED_FIELDS = [
 CATEGORIES = {"absolute", "false_claim", "platform"}
 PREFIX = {"absolute": "ABS", "false_claim": "FLM", "platform": "PLT"}
 SEVERITIES = {"high", "medium", "low"}
-STATUSES = {"verified", "platform_pending"}
+STATUSES = {"verified", "platform_official", "platform_pending"}
+# 需要与存档原文逐字比对的来源状态
+QUOTED_STATUSES = {"verified", "platform_official"}
 
 
 def load_archive_text() -> str:
@@ -44,7 +46,7 @@ def load_archive_text() -> str:
     if not SOURCES_DIR.exists():
         return ""
     parts = []
-    for path in sorted(SOURCES_DIR.glob("*.md")):
+    for path in sorted(SOURCES_DIR.rglob("*.md")):
         parts.append(path.read_text(encoding="utf-8"))
     return "\n".join(parts)
 
@@ -53,7 +55,7 @@ def check_urls(rows: list[dict]) -> list[str]:
     errors = []
     seen: set[str] = set()
     for url in sorted({r["source_url"] for r in rows}):
-        if url in seen:
+        if url in seen or not url.startswith("http"):
             continue
         seen.add(url)
         req = urllib.request.Request(url, method="GET", headers={"User-Agent": "content-guard/0.1"})
@@ -119,7 +121,7 @@ def main() -> int:
         status = (row.get("status") or "").strip()
         if status not in STATUSES:
             errors.append(f"{tag}: status 非法值 {status!r}")
-        elif status == "verified":
+        elif status in QUOTED_STATUSES:
             quote = (row.get("quote") or "").strip()
             if quote and quote not in archive:
                 errors.append(
@@ -130,6 +132,12 @@ def main() -> int:
             note = (row.get("note") or "")
             if "待" not in note:
                 warnings.append(f"{tag}: platform_pending 但 note 未说明待补事项")
+
+        # source_url 允许是 http(s) 链接，或仓库内存档的相对路径
+        src_url = (row.get("source_url") or "").strip()
+        if src_url and not src_url.startswith("http"):
+            if not (ROOT / src_url).exists():
+                errors.append(f"{tag}: source_url 指向的本地存档不存在 —— {src_url}")
 
     for rid, count in seen_ids.items():
         if count > 1:
