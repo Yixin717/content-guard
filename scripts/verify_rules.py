@@ -19,7 +19,9 @@
 from __future__ import annotations
 
 import csv
+import re
 import sys
+import unicodedata
 import urllib.error
 import urllib.request
 from collections import Counter
@@ -39,6 +41,24 @@ SEVERITIES = {"high", "medium", "low"}
 STATUSES = {"verified", "platform_official", "platform_pending"}
 # 需要与存档原文逐字比对的来源状态
 QUOTED_STATUSES = {"verified", "platform_official"}
+
+
+RADICAL_FIX = {
+    "⺠": "民", "⻁": "虎", "⻋": "车", "⻓": "长",
+    "⻔": "门", "⻛": "风", "⻝": "食", "⼩": "小",
+}
+
+
+def norm(text: str) -> str:
+    """比对用的归一化：统一全/半角与部首字形，并去掉所有空白。
+
+    PDF 文字层会在句中硬换行，存档与 quote 的空白分布天然不同，因此比对时忽略空白；
+    除空白与全/半角差异外，其余字符必须完全一致。
+    """
+    for bad, good in RADICAL_FIX.items():
+        text = text.replace(bad, good)
+    flattened = unicodedata.normalize("NFKC", text)
+    return re.sub(r"\s+", "", flattened)
 
 
 def load_archive_text() -> str:
@@ -123,7 +143,7 @@ def main() -> int:
             errors.append(f"{tag}: status 非法值 {status!r}")
         elif status in QUOTED_STATUSES:
             quote = (row.get("quote") or "").strip()
-            if quote and quote not in archive:
+            if quote and norm(quote) not in norm(archive):
                 errors.append(
                     f"{tag}: quote 在存档原文中找不到逐字匹配 —— 可能改写或抄错\n"
                     f"        quote: {quote}"
