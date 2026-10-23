@@ -1,0 +1,4 @@
+id,category,title,text,source,platform,severity,examples,version
+ABS-001,absolute,禁止使用"最"类绝对化用语,"广告不得使用""国家级""最高级""最佳""等用语。",《广告法》第九条,xiaohongshu,high,最好用的|全网最低|第一品牌,2026-10-23
+ADV-001,fake_claim,非医疗商品不得宣称疾病治疗功效,"除医疗、药品、医疗器械广告外，禁止其他任何广告涉及疾病治疗功能，不得使用医疗用语或者易使推销的商品与药品相混淆的用语。",《广告法》第十七条,xiaohongshu,high,治疗|治愈|根治|消炎,2026-10-23
+PLT-001,platform,禁止站外引流,笔记与评论中不得出现微信号、二维码或其他平台导流信息。,小红书社区规范,xiaohongshu,high,加V|私信领|主页有链接,2026-10-23
