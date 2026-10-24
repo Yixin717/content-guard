@@ -4,9 +4,31 @@
 
 **为什么做**：1–3 人的小商家团队没有专职合规，通常是「发布后被限流」才发现问题，且平台只说"涉嫌违规"，不说哪句话、违反哪条。这个项目把合规从"发布后检查"前移到"生成时就有护栏"。
 
-**当前状态**：D0（2026-10-23）—— 规则库 v1（39 条）+ 真实性校验脚本已完成，代码尚未开始。
+**当前状态**：D1 完成 —— 规则库 39 条 + 真实性校验 + CLI 流水线（brief → 3 版草稿 → 违规列表）跑通。
 
 **技术栈**：FastAPI + SQLite + Next.js + Nginx + systemd，部署于腾讯云 CVM；模型 DeepSeek `deepseek-chat`。
+
+## 快速开始
+
+```bash
+# 1) 配置密钥（写入 .env，不会进 git）
+bash scripts/init_env.sh
+
+# 2) 后端依赖
+cd backend && /usr/bin/python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+
+# 3) 跑一条 brief：生成 3 版草稿 + 合规检查
+.venv/bin/python -m app.cli "杭州女装小店，冰丝阔腿裤，遮胯显瘦，69 元两条"
+
+# 4) 只检查一段现成文案（回归/演示用）
+.venv/bin/python -m app.cli --check "全网最低价，三天根治痘痘，加V领福利"
+
+# 5) 校验规则真实性 & 跑单测
+python3 scripts/verify_rules.py
+cd backend && .venv/bin/python -m pytest -q
+```
+
+> 环境要求：Python 3.9+（3.12 的 DSH 运行时因代码签名限制装不了 pydantic-core，用系统 Python 即可）。
 
 ## 规则库
 
