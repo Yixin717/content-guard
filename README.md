@@ -59,11 +59,17 @@ python3 scripts/verify_rules.py --check-urls  # 额外检查来源链接是否 2
 
 校验不过即退出码 1。**改一个字都会报红**，这是"规则不是编的"的机器证明。
 
-## 文档
+## 文档导航
 
-- [14 天执行计划](docs/plan.md)
-- [来源存档](docs/sources/)：《广告法》(2021 修正) 条文摘录、《广告绝对化用语执法指南》全文、[小红书社区规范 2021.12 + 社区公约 2.0 + 推广规范](docs/sources/xiaohongshu/README.md)
-- [Backlog](docs/backlog.md)：规则带来的 3 个产品结论（AI 标注、标题党、账号级规则）
+| 想知道什么 | 看哪里 |
+|---|---|
+| 现在做到哪了、怎么接着做 | **[D1 交接文档](docs/handover-D1.md)** ← 先看这个 |
+| 整体计划与每日目标 | [14 天执行计划](docs/plan.md) |
+| 每天做了什么 | [开发日志](docs/log.md) |
+| 为什么这么定（取舍） | [决策记录 ADR](docs/decisions.md) |
+| 想到了但还没做 | [Backlog](docs/backlog.md) |
+| 规则出处与原文 | [来源存档](docs/sources/) · [小红书规则存档](docs/sources/xiaohongshu/README.md) |
+| 规则真实性怎么保证 | `python3 scripts/verify_rules.py` |
 
 ## 目录
 

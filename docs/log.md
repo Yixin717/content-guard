@@ -43,4 +43,6 @@
 已修：检查器加三道护栏（rule_id 真实性 / quote 逐字校验 / 置信度 <0.7 转 uncertain）、
 prompt 增加判定纪律与反例、规则增至 40 条。样本已存为 `data/eval_cases/001-zara-jacket.json`。
 
+**收尾**：写了 `docs/handover-D1.md`（进度快照/仓库地图/设计决策/技术债/D2 计划/踩坑记录）。
+
 **明天第一件事**：规则扩到 45–50 条 + 10 条 smoke test 记录漏检/误报。
