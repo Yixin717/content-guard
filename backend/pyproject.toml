@@ -1,0 +1,10 @@
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+
+[tool.ruff.lint]
+# 保留 typing.List/Optional 写法（项目最低支持 Python 3.9），故不启用 UP 规则
+select = ["E", "F", "I", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
