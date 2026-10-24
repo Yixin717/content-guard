@@ -36,6 +36,11 @@ def run_check(text: str) -> int:
         print(f"       原文：{v.quote}")
         print(f"       依据：{v.source}｜置信度 {v.confidence:.2f}")
         print(f"       改写：{v.suggestion}")
+    for v in result.uncertain:
+        print(f"  [?] {v.rule_id} {v.rule_title}｜置信度 {v.confidence:.2f}（待确认，未计入违规）")
+        print(f"       原文：{v.quote}")
+    if result.dropped_quotes:
+        print(f"（丢弃无法逐字匹配的引用：{'；'.join(result.dropped_quotes[:3])}）")
     if result.human_review:
         print(f"⚠ 需人工复核：{result.reason}")
     return 0
@@ -108,6 +113,8 @@ def run(brief: str, tone: str, as_json: bool, do_check: bool) -> int:
                 print(f"       改写：{v.suggestion}")
         else:
             print("违规 0 条")
+        for v in c.uncertain:
+            print(f"  [?] 待确认 {v.rule_id} {v.rule_title}｜置信度 {v.confidence:.2f}｜原文：{v.quote}")
         if c.human_review:
             print(f"⚠ 需人工复核：{c.reason}")
         if c.dropped_unknown_rule_ids:

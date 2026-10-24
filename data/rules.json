@@ -1,6 +1,6 @@
 {
-  "version": "v2026.10.23",
-  "count": 39,
+  "version": "v2026.10.24",
+  "count": 40,
   "rules": [
     {
       "id": "ABS-001",
@@ -547,6 +547,20 @@
       "examples": "隔夜水致癌|某成分能杀灭癌细胞|酸碱体质论",
       "note": "保健品/食品带货高频；需接权威辟谣库才能判，当前只做关键词预警并转人工。",
       "version": "v2026.10.23"
+    },
+    {
+      "id": "PLT-020",
+      "category": "platform",
+      "title": "禁止侮辱、贬损消费者或道德绑架式营销话术",
+      "quote": "发布含人身攻击、骚扰他人的内容，如辱骂、侮辱、恶意引战、故意骚扰等",
+      "source": "《小红书社区规范》(2021.12)",
+      "source_url": "docs/sources/xiaohongshu/社区规范-2021.md",
+      "fetched_at": "2026-10-24",
+      "severity": "medium",
+      "status": "platform_official",
+      "examples": "不买是孙子|不买你就是没眼光|这都不买算什么人",
+      "note": "条款原意针对人身攻击/辱骂；用于「贬损潜在买家」属类推适用，判定尺度保守（medium），命中后一律转人工。",
+      "version": "v2026.10.24"
     }
   ]
 }

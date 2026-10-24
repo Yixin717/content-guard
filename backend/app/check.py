@@ -1,7 +1,15 @@
-"""检查器：规则检索 → LLM 逐条核对 → 幻觉防护（rule_id 必须真实存在）。"""
+"""检查器：规则检索 → LLM 逐条核对 → 幻觉防护 + 引用校验 + 置信度分流。
+
+三道工程护栏（都是被真实误报逼出来的）：
+1. rule_id 必须真实存在，否则丢弃；
+2. quote 必须在草稿中逐字出现，否则丢弃（防止模型"总结"而非"引用"）；
+3. confidence 低于阈值的不进 violations，进 uncertain —— 误报比漏报更伤信任。
+"""
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
@@ -10,6 +18,8 @@ from pydantic import BaseModel, Field
 from .llm import LLM
 from .prompts import CHECKER_SYSTEM, build_check_prompt
 from .rules import Rule, load_rules, retrieve
+
+CONFIDENCE_THRESHOLD = 0.7
 
 
 class ViolationPayload(BaseModel):
@@ -51,19 +61,27 @@ class Violation:
 @dataclass
 class CheckResult:
     violations: List[Violation] = field(default_factory=list)
+    uncertain: List[Violation] = field(default_factory=list)
     human_review: bool = False
     reason: str = ""
     dropped_unknown_rule_ids: List[str] = field(default_factory=list)
+    dropped_quotes: List[str] = field(default_factory=list)
     usage: Dict[str, int] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, object]:
         return {
             "violations": [v.to_dict() for v in self.violations],
+            "uncertain": [v.to_dict() for v in self.uncertain],
             "human_review": self.human_review,
             "reason": self.reason,
             "dropped_unknown_rule_ids": self.dropped_unknown_rule_ids,
+            "dropped_quotes": self.dropped_quotes,
             "usage": self.usage,
         }
+
+
+def _norm(text: str) -> str:
+    return re.sub(r"\s+", "", unicodedata.normalize("NFKC", text))
 
 
 def check_text(
@@ -72,10 +90,12 @@ def check_text(
     rules: Optional[List[Rule]] = None,
     llm: Optional[LLM] = None,
     top_k: int = 18,
+    confidence_threshold: float = CONFIDENCE_THRESHOLD,
 ) -> CheckResult:
     rules = rules if rules is not None else load_rules()
     llm = llm or LLM()
     by_id = {r.id: r for r in rules}
+    draft_norm = _norm(f"{title}\n{script}")
 
     candidates = retrieve(rules, f"{title}\n{script}", top_k=top_k)
     payload, usage = llm.chat_json(CHECKER_SYSTEM, build_check_prompt(title, script, candidates), CheckPayload)
@@ -87,24 +107,32 @@ def check_text(
         if rule is None:  # 模型编了一个不存在的 rule_id
             result.dropped_unknown_rule_ids.append(v.rule_id)
             continue
+        quote = v.quote.strip()
+        if quote and _norm(quote) not in draft_norm:  # 引用不是原文，而是模型的转述
+            result.dropped_quotes.append(quote)
+            continue
         if rule.id in seen:
             continue
         seen.add(rule.id)
-        result.violations.append(
-            Violation(
-                rule_id=rule.id,
-                rule_title=rule.title,
-                source=rule.source,
-                quote=v.quote.strip(),
-                severity=(v.severity or rule.severity).strip(),
-                suggestion=v.suggestion.strip(),
-                confidence=float(v.confidence or 0.0),
-            )
+        item = Violation(
+            rule_id=rule.id,
+            rule_title=rule.title,
+            source=rule.source,
+            quote=quote,
+            severity=(v.severity or rule.severity).strip(),
+            suggestion=v.suggestion.strip(),
+            confidence=float(v.confidence or 0.0),
         )
+        if item.confidence < confidence_threshold:
+            result.uncertain.append(item)
+        else:
+            result.violations.append(item)
 
     order = {"high": 0, "medium": 1, "low": 2}
     result.violations.sort(key=lambda x: order.get(x.severity, 9))
+    result.uncertain.sort(key=lambda x: order.get(x.severity, 9))
+
     if not result.violations and not result.human_review:
-        result.reason = result.reason or "未发现明确违规，建议人工复核"
         result.human_review = True
+        result.reason = result.reason or "未发现可确证的违规，建议人工复核"
     return result
