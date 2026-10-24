@@ -4,7 +4,7 @@
 
 **为什么做**：1–3 人的小商家团队没有专职合规，通常是「发布后被限流」才发现问题，且平台只说"涉嫌违规"，不说哪句话、违反哪条。这个项目把合规从"发布后检查"前移到"生成时就有护栏"。
 
-**当前状态**：D1 完成 —— 规则库 39 条 + 真实性校验 + CLI 流水线（brief → 3 版草稿 → 违规列表）跑通。
+**当前状态**：D1 完成、D3 的改写已提前完成 —— 规则库 40 条 + 真实性校验 + CLI 全链路（生成 → 检查 → 引用 → 改写 → 复检）。
 
 **技术栈**：FastAPI + SQLite + Next.js + Nginx + systemd，部署于腾讯云 CVM；模型 DeepSeek `deepseek-chat`。
 
@@ -19,6 +19,9 @@ cd backend && /usr/bin/python3 -m venv .venv && .venv/bin/pip install -r require
 
 # 3) 跑一条 brief：生成 3 版草稿 + 合规检查
 .venv/bin/python -m app.cli "杭州女装小店，冰丝阔腿裤，遮胯显瘦，69 元两条"
+
+# 3b) 有违规时自动改写并复检（最多 2 轮）
+.venv/bin/python -m app.cli --check "全网最低价，三天根治痘痘" --rewrite
 
 # 4) 只检查一段现成文案（回归/演示用）
 .venv/bin/python -m app.cli --check "全网最低价，三天根治痘痘，加V领福利"

@@ -80,3 +80,16 @@ def test_suspected_channel_and_quote_guard():
     assert result.suspected[0].reason.startswith("情绪施压")
     assert result.dropped_quotes == ["草稿里根本没有这句"]
     assert result.human_review is True
+
+
+def test_sentence_diff_detects_replacement():
+    from app.rewrite import sentence_diff, split_clauses
+
+    before = "全网最低价！三天根治痘痘。这条裤子很好看。"
+    after = "这条裤子性价比很高。痘痘肌用着有改善。这条裤子很好看。"
+    changes = sentence_diff(before, after)
+    kinds = {c["type"] for c in changes}
+    assert "replace" in kinds
+    assert any("全网最低" in c["before"] for c in changes)
+    assert all(c["before"] or c["after"] for c in changes)
+    assert split_clauses(before)[-1] == "这条裤子很好看。"

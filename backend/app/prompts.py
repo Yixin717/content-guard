@@ -114,3 +114,66 @@ def build_check_prompt(draft_title: str, draft_script: str, rules: List[Rule]) -
 - 应报：草稿“全网最低价，三天根治痘痘”——ABS-004（价格绝对化）、FLM-001（疾病治疗功能）。
 
 {CHECKER_FORMAT}"""
+
+
+REWRITER_SYSTEM = """你是小红书带货文案的合规改写编辑。你的任务：在不改变原意的前提下，把违规表述改掉。
+
+改写铁律：
+1. 保留所有**可核对的事实性卖点**（价格、成分、尺码、活动时间），一个都不能删。
+2. 保留第一人称、口语化、原有的语气和人设，不要改成广告腔。
+3. 只改违规的地方，没问题的句子**原样保留**，不要顺手润色。
+4. 不得为解决违规而**新增**任何宣称（不要改成另一个夸大说法）。
+   特别注意：把“根治”改成“改善/缓解/修复/调理”**仍然是功效宣称**，同样违规。
+   涉及功效时，只能改为「我自己的使用感受」或「使用场景」，例如
+   “我用了两周，脸上没那么油了”“夏天出汗多的时候用着舒服”。
+5. 不要写“根据广告法”“为符合规范”这类解释性文字。
+6. 每条改动都要说明：改前、改后、为什么改、对应哪个 rule_id。
+
+只输出 JSON。"""
+
+REWRITER_FORMAT = """输出 JSON：
+{
+  "title": "改写后的标题",
+  "hook": "改写后的开场",
+  "script": "改写后的口播脚本",
+  "selling_points": ["卖点1", "卖点2"],
+  "changes": [
+    {
+      "before": "原文片段",
+      "after": "改写后片段",
+      "reason": "为什么改",
+      "rule_ids": ["FLM-001"]
+    }
+  ]
+}"""
+
+
+def build_rewrite_prompt(title: str, hook: str, script: str, violations: List[dict], rules: List[Rule]) -> str:
+    by_id = {r.id: r for r in rules}
+    lines = []
+    for v in violations:
+        rule = by_id.get(v["rule_id"])
+        lines.append(
+            f"- {v['rule_id']} {rule.title if rule else ''}\n"
+            f"  违规原文：{v.get('quote', '')}\n"
+            f"  修改建议：{v.get('suggestion', '')}\n"
+            f"  依据：{rule.source if rule else ''}"
+        )
+    violation_block = "\n".join(lines) or "（无）"
+
+    return f"""请改写下面这条小红书带货文案。
+
+【原标题】{title}
+【原开场】{hook}
+【原口播脚本】
+{script}
+
+【必须修掉的违规项】
+{violation_block}
+
+要求：
+- 只改上述问题点，其余文字尽量保持原样。
+- 价格、规格、活动时间等事实信息不得改动或删除。
+- 改写后仍然要像真人写的，不能变成四平八稳的广告。
+
+{REWRITER_FORMAT}"""
