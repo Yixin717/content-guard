@@ -278,3 +278,16 @@ cd backend && .venv/bin/python -m pytest -q   # 应 6 passed
 **评测样本**：真实笔记暂时收集困难，改为两条腿走路：
 1. 合成 smoke test（开发自测用，标注"合成"，不进 eval_cases）
 2. 真实样本靠日常积累，D7 前尽量凑到 12–15 条
+
+
+**2026-10-24 晚（续）：D4 的 API 与 SQLite 已完成**
+
+| 变更 | 说明 |
+|---|---|
+| 新增 `backend/app/db.py` | 五表 + seed + 幂等确认（UNIQUE 约束） |
+| 新增 `backend/app/api.py` / `schemas.py` / `main.py` | 7 个接口，Pydantic 校验，LLM 异常统一 504 |
+| 新增 `backend/tests/test_api.py` | 5 个接口测试，dependency override 替换 LLM |
+| 单测总数 | 7 → **12** |
+
+**接口**：`/health`、`/api/generate`、`/api/check`、`/api/rewrite`、`/api/confirm`、`/api/history`、`/api/rules`。
+**规律**：`python -m app.db init` 建库并 seed 规则；`uvicorn app.main:app --reload` 起服务，`/docs` 有 Swagger。

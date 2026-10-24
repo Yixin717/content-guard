@@ -25,6 +25,7 @@ class Settings:
     rules_csv: Path = REPO_ROOT / "rules.csv"
     rules_json: Path = REPO_ROOT / "data" / "rules.json"
     out_dir: Path = REPO_ROOT / "out"
+    db_path: Path = REPO_ROOT / "data" / "content_guard.db"
 
     @classmethod
     def require_key(cls) -> str:

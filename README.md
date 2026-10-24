@@ -4,7 +4,7 @@
 
 **为什么做**：1–3 人的小商家团队没有专职合规，通常是「发布后被限流」才发现问题，且平台只说"涉嫌违规"，不说哪句话、违反哪条。这个项目把合规从"发布后检查"前移到"生成时就有护栏"。
 
-**当前状态**：D1 完成、D3 的改写已提前完成 —— 规则库 40 条 + 真实性校验 + CLI 全链路（生成 → 检查 → 引用 → 改写 → 复检）。
+**当前状态**：D1 完成、D3 改写与 D4 的 API 均已提前完成 —— 规则库 40 条 + CLI 全链路 + FastAPI/SQLite（含幂等确认与审计）。
 
 **技术栈**：FastAPI + SQLite + Next.js + Nginx + systemd，部署于腾讯云 CVM；模型 DeepSeek `deepseek-chat`。
 
@@ -26,10 +26,26 @@ cd backend && /usr/bin/python3 -m venv .venv && .venv/bin/pip install -r require
 # 4) 只检查一段现成文案（回归/演示用）
 .venv/bin/python -m app.cli --check "全网最低价，三天根治痘痘，加V领福利"
 
-# 5) 校验规则真实性 & 跑单测
+# 5) 起 API（Swagger: http://127.0.0.1:8000/docs）
+cd backend && .venv/bin/python -m app.db init
+.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+
+# 6) 校验规则真实性 & 跑单测
 python3 scripts/verify_rules.py
 cd backend && .venv/bin/python -m pytest -q
 ```
+
+### API
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/health` | 健康检查（返回模型名与规则条数） |
+| POST | `/api/generate` | `{brief, tone?}` → 3 版草稿 |
+| POST | `/api/check` | `{draft_id}` 或 `{content}` → 违规 / 待确认 / 疑似 |
+| POST | `/api/rewrite` | `{draft_id}` → 改写 + 复检 + diff |
+| POST | `/api/confirm` | `{draft_id, final_content}` → 幂等确认，返回审计 id |
+| GET | `/api/history?limit=20` | 已确认记录 |
+| GET | `/api/rules?category=` | 规则列表 |
 
 > 环境要求：Python 3.9+（3.12 的 DSH 运行时因代码签名限制装不了 pydantic-core，用系统 Python 即可）。
 

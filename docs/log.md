@@ -64,3 +64,21 @@ prompt 增加判定纪律与反例、规则增至 40 条。样本已存为 `data
 **这个案例说明复检是必要的：改写本身也会引入新违规。**
 
 **下一步**：规则扩到 45–50 条；用合成 smoke test 代替真实评测样本（标注"合成"，不与 eval_cases 混）。
+
+---
+
+## 追加 · 2026-10-24 晚（D4 提前）
+
+**做了什么**
+- `db.py`：SQLite 五表（products / drafts / checks / confirmations / rules），CSV 为规则唯一来源、DB 只做副本。
+- `api.py` + `schemas.py`：7 个接口，Pydantic 前置校验，LLM 异常统一 504，`/api/confirm` 用 `UNIQUE(draft_id)` 实现幂等。
+- `tests/test_api.py`：5 个接口测试（422 校验、类别过滤、生成→检查→确认幂等、404），全部用 dependency override 替换 LLM，不触网。
+- 单测 7 → 12 个。
+
+**实测（真实 HTTP）**
+`/health` 40 条规则；`/api/generate` 8.0s 出 3 版；`/api/check` 零违规 + human_review；
+`/api/confirm` 第二次返回 `idempotent: true` 且 audit_id 相同；`/api/history` 1 条。
+
+**卡在哪**
+- 生成接口同步阻塞 8–15s，D5 前端需要 loading 态；后续可考虑异步任务。
+- 尚无鉴权（计划明确不做多租户，但公开 demo 要防滥用，见 D6 备注）。
