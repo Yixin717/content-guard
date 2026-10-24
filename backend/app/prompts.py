@@ -53,6 +53,8 @@ B. 商家自述产品缺点、风险提示、使用限制属于真实体验，�
 C. quote 必须逐字抄自草稿。如果你只能“概括”这句话的意思，说明你并没有真的引用，就不要输出这一条。
 D. confidence 请如实：勉强能关联到规则时给 0.5 以下（系统会转入人工队列），明确命中才给 0.8 以上。
 E. 如果整段文案没有任何一条规则能明确命中，就返回空 violations，并在 reason 里说明你检查了什么。
+F. **规则覆盖不到但明显有问题**的表述（粗俗、道德绑架、诱导恐慌等），不要硬套一条不相干的 rule_id，
+   放进 suspected 数组，写清楚哪里不对、为什么规则库没覆盖。这比乱报一条更有价值。
 
 只输出 JSON。"""
 
@@ -65,6 +67,13 @@ CHECKER_FORMAT = """输出 JSON：
       "severity": "high|medium|low",
       "suggestion": "改成什么，给一句可直接替换的写法",
       "confidence": 0.0
+    }
+  ],
+  "suspected": [
+    {
+      "quote": "草稿里看着不对但无条款可依的原文片段",
+      "reason": "为什么判断有问题（不要写规则 id）",
+      "severity": "high|medium|low"
     }
   ],
   "human_review": false,

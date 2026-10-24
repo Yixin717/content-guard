@@ -30,8 +30,17 @@ class ViolationPayload(BaseModel):
     confidence: float = 0.0
 
 
+class SuspectedPayload(BaseModel):
+    """疑似有问题、但规则库没有对应条款的情况 —— 不硬套 rule_id。"""
+
+    quote: str = ""
+    reason: str = ""
+    severity: str = "medium"
+
+
 class CheckPayload(BaseModel):
     violations: List[ViolationPayload] = Field(default_factory=list)
+    suspected: List[SuspectedPayload] = Field(default_factory=list)
     human_review: bool = False
     reason: str = ""
 
@@ -59,8 +68,19 @@ class Violation:
 
 
 @dataclass
+class Suspected:
+    quote: str
+    reason: str
+    severity: str = "medium"
+
+    def to_dict(self) -> Dict[str, object]:
+        return {"quote": self.quote, "reason": self.reason, "severity": self.severity}
+
+
+@dataclass
 class CheckResult:
     violations: List[Violation] = field(default_factory=list)
+    suspected: List[Suspected] = field(default_factory=list)
     uncertain: List[Violation] = field(default_factory=list)
     human_review: bool = False
     reason: str = ""
@@ -72,6 +92,7 @@ class CheckResult:
         return {
             "violations": [v.to_dict() for v in self.violations],
             "uncertain": [v.to_dict() for v in self.uncertain],
+            "suspected": [s.to_dict() for s in self.suspected],
             "human_review": self.human_review,
             "reason": self.reason,
             "dropped_unknown_rule_ids": self.dropped_unknown_rule_ids,
@@ -128,10 +149,19 @@ def check_text(
         else:
             result.violations.append(item)
 
+    for s in payload.suspected:
+        quote = s.quote.strip()
+        if quote and _norm(quote) not in draft_norm:
+            result.dropped_quotes.append(quote)
+            continue
+        result.suspected.append(Suspected(quote=quote, reason=s.reason.strip(), severity=s.severity or "medium"))
+
     order = {"high": 0, "medium": 1, "low": 2}
     result.violations.sort(key=lambda x: order.get(x.severity, 9))
     result.uncertain.sort(key=lambda x: order.get(x.severity, 9))
 
+    if result.suspected:
+        result.human_review = True
     if not result.violations and not result.human_review:
         result.human_review = True
         result.reason = result.reason or "未发现可确证的违规，建议人工复核"

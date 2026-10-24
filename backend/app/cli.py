@@ -39,6 +39,9 @@ def run_check(text: str) -> int:
     for v in result.uncertain:
         print(f"  [?] {v.rule_id} {v.rule_title}｜置信度 {v.confidence:.2f}（待确认，未计入违规）")
         print(f"       原文：{v.quote}")
+    for s in result.suspected:
+        print(f"  [!] 疑似问题（无对应条款）：{s.quote}")
+        print(f"       原因：{s.reason}")
     if result.dropped_quotes:
         print(f"（丢弃无法逐字匹配的引用：{'；'.join(result.dropped_quotes[:3])}）")
     if result.human_review:
@@ -115,6 +118,8 @@ def run(brief: str, tone: str, as_json: bool, do_check: bool) -> int:
             print("违规 0 条")
         for v in c.uncertain:
             print(f"  [?] 待确认 {v.rule_id} {v.rule_title}｜置信度 {v.confidence:.2f}｜原文：{v.quote}")
+        for s in c.suspected:
+            print(f"  [!] 疑似问题（无对应条款）：{s.quote}｜{s.reason}")
         if c.human_review:
             print(f"⚠ 需人工复核：{c.reason}")
         if c.dropped_unknown_rule_ids:

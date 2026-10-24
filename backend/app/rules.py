@@ -32,6 +32,7 @@ class Rule:
     examples: str
     note: str
     version: str
+    counter_examples: str = ""
 
     def to_dict(self) -> Dict[str, str]:
         return asdict(self)
@@ -42,12 +43,16 @@ class Rule:
 
     def digest(self) -> str:
         """给 LLM 看的一行摘要，控制 token。"""
-        return (
-            f"[{self.id}] {self.title}\n"
-            f"  依据：{self.source}｜严重度：{self.severity}｜状态：{self.status}\n"
-            f"  原文：“{self.quote}”\n"
-            f"  例：{'、'.join(self.example_list)}"
-        )
+        lines = [
+            f"[{self.id}] {self.title}",
+            f"  依据：{self.source}｜严重度：{self.severity}｜状态：{self.status}",
+            f"  原文：“{self.quote}”",
+            f"  违规例：{'、'.join(self.example_list)}",
+        ]
+        counters = [c for c in self.counter_examples.split("|") if c.strip()]
+        if counters:
+            lines.append(f"  反例（不算违规，勿误报）：{'、'.join(counters)}")
+        return "\n".join(lines)
 
 
 def load_rules(csv_path=None) -> List[Rule]:

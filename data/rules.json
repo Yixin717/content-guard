@@ -14,7 +14,8 @@
       "status": "verified",
       "examples": "国家级品质|最高级面料|最佳选择",
       "note": "法定绝对化用语，命中即高危；执法指南第五、六条另有豁免情形，命中后仍需结合语境判断。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": "我最喜欢这件|这次买得很值|挑了很久才下单"
     },
     {
       "id": "ABS-002",
@@ -28,7 +29,8 @@
       "status": "verified",
       "examples": "行业第一|唯一一款|独家配方|顶级工艺",
       "note": "指南第二条明确“含义相同或者近似的其他用语”一并纳入；若“销量第一”限定时间地域且可举证，属指南第六条(六)不适用情形，应转人工核对。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": "这件真的不一样|第一次买皮夹克|跟别人穿的不太一样"
     },
     {
       "id": "ABS-003",
@@ -42,7 +44,8 @@
       "status": "verified",
       "examples": "护肤天花板|封神了|无对手|全面碾压",
       "note": "网络黑话属“含义近似”的变体，口语化程度高、误报风险大，建议定为 medium 并给人工复核入口。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": "我很喜欢|很适合我|穿上心情好"
     },
     {
       "id": "ABS-004",
@@ -56,7 +59,8 @@
       "status": "verified",
       "examples": "全网最低价|史上最便宜|绝对找不到更低",
       "note": "价格类绝对化同时踩价格法与反不正当竞争法，实践中处罚集中，建议 high。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": "比平时便宜 30 块|我买的时候 99"
     },
     {
       "id": "ABS-005",
@@ -70,7 +74,8 @@
       "status": "verified",
       "examples": "100%有效|彻底告别|永久解决|一次见效",
       "note": "注意区分：“100%纯棉”属材质客观描述，不适用本条；本条只针对效果承诺。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": "我用了两周感觉有改善|100% 纯棉（材质事实）"
     },
     {
       "id": "ABS-006",
@@ -84,7 +89,8 @@
       "status": "verified",
       "examples": "央视推荐|国家认证|官方指定用品|政府背书",
       "note": "带货文案常见“xx部门认证”话术，实质是借用公权力背书。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": "按国标生产（可提供检测依据）"
     },
     {
       "id": "ABS-007",
@@ -98,7 +104,8 @@
       "status": "verified",
       "examples": "国旗同款|国徽元素|军装风致敬",
       "note": "“变相使用”含元素化、谐音化设计，不限于直接出现图案。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": "红色款很喜庆"
     },
     {
       "id": "ABS-008",
@@ -112,7 +119,8 @@
       "status": "verified",
       "examples": "擦边暗示|物化女性|制造焦虑式道德绑架",
       "note": "判罚依赖语境，模型置信度低时应转人工，不硬判。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": "显腿长|显瘦（正常穿搭描述）"
     },
     {
       "id": "ABS-009",
@@ -126,7 +134,8 @@
       "status": "verified",
       "examples": "转运开光|赌一把运气|见血效果",
       "note": "“开光/改运/风水”属迷信类，美妆个护文案中出现频率高于预期。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": "本命年红绳（民俗，非运势承诺）"
     },
     {
       "id": "ABS-010",
@@ -140,7 +149,8 @@
       "status": "verified",
       "examples": "女人就该…|某地人天生…|信某教才能…",
       "note": "常以“调侃”“玩笑”形式出现，属高危舆情点。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": "适合小个子|适合梨形身材"
     },
     {
       "id": "FLM-001",
@@ -154,7 +164,8 @@
       "status": "verified",
       "examples": "三天根治痘痘|治愈湿疹|消炎杀菌|药到病除",
       "note": "护肤品/食品/服装最常踩；只要商品不是药品/医疗器械，出现“治/疗/愈”即高危。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "FLM-002",
@@ -168,7 +179,8 @@
       "status": "verified",
       "examples": "医用级|械字号|疗程|处方级配方",
       "note": "“医用级”“械字号”若无相应资质即属混淆；有资质也需在文案中说明，不能只喊词。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "FLM-003",
@@ -182,7 +194,8 @@
       "status": "verified",
       "examples": "7天瘦10斤|一洗白|抹上立刻见效",
       "note": "典型“前后对比式”夸大；即便加了“效果因人而异”也不免责。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "FLM-004",
@@ -196,7 +209,8 @@
       "status": "verified",
       "examples": "100%纯羊毛（实为混纺）|意大利进口（实为国产）|真丝（实为聚酯纤维）",
       "note": "需要商品资料才能判定，属“检索无依据”场景，应转人工核对而非硬判。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "FLM-005",
@@ -210,7 +224,8 @@
       "status": "verified",
       "examples": "实验室验证|专家一致推荐|权威检测报告显示",
       "note": "带货文案常凭空写“实验室数据”，无编号无机构名即可疑。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "FLM-006",
@@ -224,7 +239,8 @@
       "status": "verified",
       "examples": "复购率90%|10万+用户在用|销量第一",
       "note": "“表明出处”是可判定的硬要求：没有出处的数据即命中，不需要判断真假。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "FLM-007",
@@ -238,7 +254,8 @@
       "status": "verified",
       "examples": "比某大牌还好用|吊打同行|同行都是智商税",
       "note": "“某大牌”“同行”即使不点名，指向可识别即属贬低。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "FLM-008",
@@ -252,7 +269,8 @@
       "status": "verified",
       "examples": "专利配方|独家专利技术|已申请专利",
       "note": "“已申请”不等于“已授权”，后者才可宣称专利。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "FLM-009",
@@ -266,7 +284,8 @@
       "status": "verified",
       "examples": "降三高|调理血糖|预防骨质疏松",
       "note": "保健食品只能宣称批准的保健功能，且必须标注“本品不能代替药物”。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "FLM-010",
@@ -280,7 +299,8 @@
       "status": "verified",
       "examples": "加盟月入过万|躺赚|稳赚不赔|零风险创业",
       "note": "加盟带货类账号高频；指南第十一条将其列为一般不适用“轻微”的情形。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-001",
@@ -294,7 +314,8 @@
       "status": "platform_official",
       "examples": "加V：xx|私信留电话|主页放微信",
       "note": "配套条款 3.2.2 还禁止「导流到其他平台的联系方式，如网址链接、二维码、水印等」，同一 rule_id 覆盖两种形态。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-002",
@@ -308,7 +329,8 @@
       "status": "platform_pending",
       "examples": "点赞抽奖|关注领红包|评论区扣1领取",
       "note": "平台判定偏主观，规则原文待补。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-003",
@@ -322,7 +344,8 @@
       "status": "platform_official",
       "examples": "刷单冲销量|买赞买收藏|招募写手代写好评",
       "note": "「刷量刷榜」是明文禁止项；文案出现刷量招募话术即命中，实际交易行为需人工核实。 另见《社区规范》4.4.4 / 5.2.1。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-004",
@@ -336,7 +359,8 @@
       "status": "platform_official",
       "examples": "加微信下单|私下转账|站外链接付款",
       "note": "与站外引流（PLT-001）常同时出现，分别报 rule_id 便于分级。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-005",
@@ -350,7 +374,8 @@
       "status": "platform_official",
       "examples": "私卖医美针剂|家用医疗器械|代购处方药",
       "note": "2.3.1 另有违禁物品清单（毒品、处方药物、投资理财产品、烟草、枪支等），属同类高风险。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-006",
@@ -364,7 +389,8 @@
       "status": "platform_official",
       "examples": "完胜某大牌|吊打同行|某某都是智商税",
       "note": "平台侧依据社区公约，法律侧对应《广告法》第十三条（FLM-007），两条并存用于分级。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-007",
@@ -378,7 +404,8 @@
       "status": "platform_official",
       "examples": "原价999现价99（虚构原价）|先涨后降|限量秒杀（长期挂着）",
       "note": "价格欺诈需历史价格数据佐证，单篇只能识别「虚构原价/限时」话术，应转人工。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-008",
@@ -392,7 +419,8 @@
       "status": "platform_official",
       "examples": "擦边暗示|暴露特写|性暗示谐音",
       "note": "与 ABS-008（违背良好风尚）重叠，平台口径更严、解释空间更大，判定应保守。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-009",
@@ -406,7 +434,8 @@
       "status": "platform_official",
       "examples": "未成年人出镜带货|小学生都在用|劝诱儿童购买",
       "note": "单篇文案只能识别「出现未成年人形象/劝诱话术」，是否构成危害需人工判断。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-010",
@@ -420,7 +449,8 @@
       "status": "platform_official",
       "examples": "搬运他人测评文案|明星同款（未授权肖像）|仿牌平替",
       "note": "文本侧只能命中「搬运/同款/平替」等信号，图片与肖像侵权需人工核验。 另见《社区规范》4.4.4 / 5.2.1。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-011",
@@ -434,7 +464,8 @@
       "status": "platform_official",
       "examples": "品牌送试用未标注#品牌名|未走品牌合作报备|参加线下活动未@品牌账号",
       "note": "送试用/付费/晒单抽奖/线下打卡均属推广；单篇文案无法判断是否已报备，应转人工复核而非硬判。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-012",
@@ -448,7 +479,8 @@
       "status": "platform_official",
       "examples": "震惊！|99%的人不知道|用了它我后悔了（正文无关）",
       "note": "带货标题重灾区；本工具应在生成阶段就约束标题，而不是只做事后检查。 另见《社区规范》4.1.3「标题党、图文不符」。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-013",
@@ -462,7 +494,8 @@
       "status": "platform_official",
       "examples": "白手起家月入十万|名校毕业（实为培训班）|宝妈逆袭（编造经历）",
       "note": "典型「逆袭故事 + 带货」套路；是否属实需人工核实，命中即提示转人工。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-014",
@@ -476,7 +509,8 @@
       "status": "platform_official",
       "examples": "整篇 AI 口播稿但无“AI生成”标注|AI 配图未注明",
       "note": "本工具的输出默认应附带“AI 生成”声明建议，否则产品本身在帮用户违规。单篇文案无法判断是否已标注，转人工。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-015",
@@ -490,7 +524,8 @@
       "status": "platform_official",
       "examples": "素人测评（实为品牌付费）|好评返现|招募水军刷评",
       "note": "「伪素人」是带货软广核心违规点；判断需要账号与商业关系信息，必须转人工。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-016",
@@ -504,7 +539,8 @@
       "status": "platform_official",
       "examples": "喝它能降血糖|跟着我买基金稳赚|买房听我的",
       "note": "与 FLM-001/FLM-010 互补：法律侧看广告内容，平台侧看资质与指导性表述。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-017",
@@ -518,7 +554,8 @@
       "status": "platform_official",
       "examples": "这条裙子才三万|月花十万不心疼|随便买买",
       "note": "判定标准是「是否对用户有用」，主观性强，只做低优先级提示。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-018",
@@ -532,7 +569,8 @@
       "status": "platform_official",
       "examples": "详情页话术原样搬运|没有使用感受只有参数|通篇“匠心工艺”广告腔",
       "note": "这条直接打中「商家把详情页文案直接当笔记发」的典型场景，是本产品最该拦的形态之一。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-019",
@@ -546,7 +584,8 @@
       "status": "platform_official",
       "examples": "隔夜水致癌|某成分能杀灭癌细胞|酸碱体质论",
       "note": "保健品/食品带货高频；需接权威辟谣库才能判，当前只做关键词预警并转人工。",
-      "version": "v2026.10.23"
+      "version": "v2026.10.23",
+      "counter_examples": ""
     },
     {
       "id": "PLT-020",
@@ -560,7 +599,8 @@
       "status": "platform_official",
       "examples": "不买是孙子|不买你就是没眼光|这都不买算什么人",
       "note": "条款原意针对人身攻击/辱骂；用于「贬损潜在买家」属类推适用，判定尺度保守（medium），命中后一律转人工。",
-      "version": "v2026.10.24"
+      "version": "v2026.10.24",
+      "counter_examples": ""
     }
   ]
 }

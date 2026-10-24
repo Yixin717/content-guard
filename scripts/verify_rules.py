@@ -148,7 +148,10 @@ def main() -> int:
                     f"{tag}: quote 在存档原文中找不到逐字匹配 —— 可能改写或抄错\n"
                     f"        quote: {quote}"
                 )
-        elif status == "platform_pending":
+        if (row.get("category") or "").strip() == "absolute" and not (row.get("counter_examples") or "").strip():
+            warnings.append(f"{tag}: 绝对化规则未填写 counter_examples（易误报）")
+
+        if status == "platform_pending":
             note = (row.get("note") or "")
             if "待" not in note:
                 warnings.append(f"{tag}: platform_pending 但 note 未说明待补事项")

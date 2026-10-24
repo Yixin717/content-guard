@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.check import CheckPayload, ViolationPayload, check_text
+from app.check import CheckPayload, SuspectedPayload, ViolationPayload, check_text
 from app.llm import _extract_json
 from app.rules import load_rules, retrieve
 
@@ -56,3 +56,27 @@ def test_checker_drops_hallucinated_rule_ids():
     result = check_text("国家级品质", "国家级品质，闭眼入", rules=rules, llm=_FakeLLM())
     assert [v.rule_id for v in result.violations] == ["ABS-001"]
     assert result.dropped_unknown_rule_ids == ["NOT-REAL-999"]
+
+
+class _SuspectedLLM:
+    """模拟「有问题但无条款可依」的情况，验证 suspected 通道与引用校验。"""
+
+    def chat_json(self, system, user, schema, max_retries=2):
+        payload = CheckPayload(
+            violations=[],
+            suspected=[
+                SuspectedPayload(quote="不买你就等着后悔", reason="情绪施压式促销，规则库未覆盖", severity="medium"),
+                SuspectedPayload(quote="草稿里根本没有这句", reason="模型瞎编的引用", severity="high"),
+            ],
+            human_review=False,
+        )
+        return payload, {"tokens_in": 0, "tokens_out": 0, "latency_ms": 0, "attempts": 1}
+
+
+def test_suspected_channel_and_quote_guard():
+    rules = load_rules()
+    result = check_text("", "不买你就等着后悔，这价格真的划算", rules=rules, llm=_SuspectedLLM())
+    assert [s.quote for s in result.suspected] == ["不买你就等着后悔"]
+    assert result.suspected[0].reason.startswith("情绪施压")
+    assert result.dropped_quotes == ["草稿里根本没有这句"]
+    assert result.human_review is True
