@@ -83,7 +83,7 @@ python3 scripts/verify_rules.py --check-urls  # 额外检查来源链接是否 2
 | 想知道什么 | 看哪里 |
 |---|---|
 | 现在做到哪了、怎么接着做 | **[D1 交接文档](docs/handover-D1.md)** ← 先看这个 |
-| 前端长什么样（结构说明） | [UI 结构说明](docs/ui-structure.md) |
+| 前端长什么样（结构与风格） | [UI 结构说明](docs/ui-structure.md) · [UI 风格落地](docs/ui-style.md) |
 | 整体计划与每日目标 | [14 天执行计划](docs/plan.md) |
 | 每天做了什么 | [开发日志](docs/log.md) |
 | 为什么这么定（取舍） | [决策记录 ADR](docs/decisions.md) |
