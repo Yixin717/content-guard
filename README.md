@@ -66,13 +66,14 @@ npm run build    # 静态导出到 out/，D6 交给 Nginx
 |---|---|---|
 | GET | `/health` | 健康检查（返回模型名与规则条数） |
 | POST | `/api/generate` | `{brief, tone?}` → 3 版草稿（含自检与自动改写） |
-| POST | `/api/check` | `{draft_id}` 或 `{content}` → 违规 / 待确认 / 疑似 |
+| POST | `/api/check` | `{draft_id}` 或 `{content}` → 违规 / 待确认 / 疑似（只检查） |
+| POST | `/api/analyze` | 同参数 → **检查 + 逐条改写 + 复检，一次返回**；改动条数恒等于违规条数（ADR-009） |
 | POST | `/api/rewrite` | `{draft_id}` → 改写 + 复检 + diff |
 | POST | `/api/confirm` | `{draft_id, final_content}` → 幂等确认，返回审计 id |
 | GET | `/api/history?limit=20` | 已确认记录 |
 | GET | `/api/rules?category=` | 规则列表 |
 
-> 生成 / 检查 / 改写三个接口都会返回 `usage`（tokens、模型耗时、请求耗时、调用次数），前端状态条直接显示它；每次请求还会往 stderr 打一行 `llm_usage …` 供 `journalctl` 对账（ADR-008）。
+> 生成 / 检查 / 分析 / 改写都会返回 `usage`（tokens、模型耗时、请求耗时、调用次数），前端状态条直接显示它；每次请求还会往 stderr 打一行 `llm_usage …` 供 `journalctl` 对账（ADR-008）。
 
 > 环境要求：Python 3.9+（3.12 的 DSH 运行时因代码签名限制装不了 pydantic-core，用系统 Python 即可）。
 

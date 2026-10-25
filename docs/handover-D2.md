@@ -9,7 +9,7 @@
 ## 0. 一眼看懂
 
 - **项目**：Content Guard —— 小红书带货文案的「发布前体检」。商家把要发的文案贴进来（或让 AI 写一版），系统按 40 条规则逐条检查、**每条违规指回具体条款**，自动给出合规改写，人工确认后导出。
-- **现在到哪**：**D0–D6 主体已完成并上线** → http://43.142.12.100/ （HTTP，无域名）。**B-008（状态条假数字 / 静态「最近」）已修并部署、线上对账通过**；D2 的规则扩容与访谈、D8 的评测**未做**。
+- **现在到哪**：**D0–D6 主体已完成并上线** → http://43.142.12.100/ （HTTP，无域名）。**第一批改造（条款原文 / 一次算完 / 编号一致 / 高亮 / 配色 / 去 AI 标志）已上线**；第二批（历史 + 匿名设备号）未做；D2 的规则扩容与访谈、D8 的评测**未做**。
 - **一句话结论**：产品内核是「检查与修订」，生成只是入口（ADR-001）；生成结果也必须内置自检（ADR-003）；**页面上的数字必须来自后端 `usage`，不许写死**（ADR-008）。**别把它当成"AI 文案生成器"来改。**
 
 
@@ -22,17 +22,18 @@
 | Git 提交数 | **42** | `git rev-list --count HEAD` |
 | 是否已推送 | **是**，`main...origin/main` 无差异 | `git status -sb` |
 | 工作区 | **干净**（无未提交改动） | `git status --short` |
-| 后端测试 | **18 passed** | `cd backend && .venv/bin/pytest -q` |
+| 后端测试 | **22 passed** | `cd backend && .venv/bin/pytest -q` |
 | 规则总数 | **40** | `python3 scripts/verify_rules.py` |
 | 规则可信分档 | verified 20 / platform_official 19 / platform_pending 1 | 同上 |
 | 规则类别 | 绝对化 10 / 虚假宣传 10 / 平台 20 | 同上 |
-| 后端接口 | 7 个（health/generate/check/rewrite/confirm/history/rules） | `backend/app/api.py` |
+| 后端接口 | 8 个（health/generate/check/analyze/rewrite/confirm/history/rules） | `backend/app/api.py` |
 | 数据库表 | 5 张（products/drafts/checks/confirmations/rules） | `backend/app/db.py` |
 | 前端页面 | 5 个 + 全局错误页 | `frontend/app/` |
+| 检查-改写一致性 | 改动条数 = 违规条数（后端强制，`unresolved` 单独标） | `POST /api/analyze`、`backend/tests/test_api.py` |
 | 线上健康 | `{"status":"ok","model":"deepseek-chat","rules":40}` | `curl http://43.142.12.100/health` |
-| 线上版本 | **已部署 ADR-008**（状态条显示真实 `usage`） | 页面不再出现 `9,254`；`journalctl` 有 `llm_usage` |
-| 线上对账 | check 2442/89 + rewrite 5406/406 → 页面 `tokens 7,848 / 495`、`耗时 5.4s` | 2026-10-25 16:11 实测 |
-| 线上改写链路 | 实测 before 1 → after 0（1 轮） | `POST /api/check` → `/api/rewrite` |
+| 线上版本 | **已部署 ADR-008 + ADR-009** | 工作台无「改写中」；状态条无模型名 |
+| 线上对账 | analyze 5817/689（5.2s，3 次调用）→ 4 处违规 / 4 条改动，编号 1:1 | 2026-10-25 21:06 实测 |
+| 线上改写链路 | 实测 4 处 → 0 处（1 轮），`start/end` 与 `after` 完全一致 | `POST /api/analyze` |
 | 评测样本 | **1 条**（`data/eval_cases/001-zara-jacket.json`） | `ls data/eval_cases` |
 | CI | 3 个 job 全绿 | `31415ca`/`5a756e1`/`f8cc484` 的 run 均 success |
 
@@ -73,6 +74,7 @@
 | 部署 | 上线公网 IP；Nginx + systemd + 一键脚本 + 备份；`docs/deploy.md` |
 | CI | 规则校验 / 后端 lint+测试 / 前端构建 三个 job |
 | 线上事故修复 | 改写结果字段不一致导致白屏（详见 §5） |
+| 工作台一致性（ADR-009） | `/api/analyze` 一次算完；改写改为逐条局部替换；改动条数 = 违规条数；条款原文内联；蓝字高亮；配色 #FFFAF0/#FFFDF7 |
 | 数据真实性（B-008） | 状态条改真实 `usage`；后端三接口补 `usage` 并全量累计；每请求一行 `llm_usage` 日志；首页「最近」改读 `/api/history`（ADR-008） |
 
 ### 3.2 与计划的偏差
@@ -140,6 +142,10 @@
 | PDF 里的康熙部首字符 | `scripts/verify_rules.py:46`（`RADICAL_FIX`） | `⻛/⻝/⻓` 与「风/食/长」码位不同，不映射就永远匹配不上 |
 | headless Chrome 最小视口 500px | — | 390 宽截图不能判断窄屏溢出 |
 | 无头 Chrome 要带 `--user-data-dir` | — | 否则报 `Failed to create headless user data directory container`，`--dump-dom` 输出为空 |
+| **React hooks 不能在提前 return 之后** | `frontend/app/workbench/page.jsx` | 曾经把 `useMemo` 写在 `if (!sample) return null` 后面 → React error #310，整页报错。所有 hook 提到 return 之前 |
+| **`next build` 会清空 `out/`** | — | 构建后再生成临时 seed 页；先放会被删掉，`http.server` 就只剩 404 |
+| 粘贴文案的标题 = 正文第一行 | `backend/app/api.py`（`_resolve_and_check`） | 若同时当 `title` 传给检查器，同一句话会检查两遍、改写可能只改到 title。粘贴场景统一 `title=""` |
+| **一次 analyze 约 5–10 秒** | `POST /api/analyze` | 3 次模型调用（检查 + 改写 + 复检）。前端显示真实计时，不要加"假进度" |
 
 ### 5.3 明确不做（防止新会话加戏）
 
@@ -181,11 +187,18 @@
   - 把这两组真实 usage 喂给页面 → 状态条显示 `tokens 7,848 / 495`、`耗时 5.4s`，**等于两条日志之和** ✅
 - 本地那两个旧 uvicorn（8000/8010）仍是旧代码，要用 `usage` 需重启
 
-### ③ 限流 + HTTPS 前置
+### ③ 第二批：历史记录 + 匿名设备号（用户已定方案 C）
+- 新增事件表（方案 C）：每次检查一条记录，字段含 owner / 状态 / 问题数 / 结论快照
+- 匿名设备号：localStorage UUID + `X-Owner-Id` 请求头（不用 cookie，避免本地跨端口 SameSite 问题）
+- 首页「最近」与历史页：**标题（或首句）+ 时间 + 几处问题**，按设备隔离；查过就算，不要求确认
+- 历史点开可恢复那次任务；线上老记录（无主）不展示
+- **验收**：两个不同浏览器/隐身窗口互相看不到对方记录；同一文案查 3 次出现 3 条
+
+### ④ 限流 + HTTPS 前置
 - Nginx 加 `limit_req`（按 IP，如 10 次/分钟），超限返回 429
 - **验收**：连续快速请求 `/api/generate` 第 11 次返回 429；把测试命令与结果写进 `docs/deploy.md`。
 
-### ④ 评测集 12 条 + 跑第一轮指标
+### ⑤ 评测集 12 条 + 跑第一轮指标
 - 从用户日常笔记补到 12 条，写 `eval/run_eval.py`
 - **验收**：脚本输出 `recall / false_positive / citation_accuracy` 三项数字，报告落到 `eval/report-v1.md`。
 - **注意**：`.gitignore` 里有 `eval/*.json`，样本继续放 `data/eval_cases/`，别放 `eval/`（backlog B-009）。
@@ -195,7 +208,7 @@
 ## 7. 新会话开场：按这个顺序读
 
 1. **本文件**（你正在读）
-2. `docs/decisions.md` —— ADR-001 ~ ADR-008，**所有"为什么这么选"都在这里**
+2. `docs/decisions.md` —— ADR-001 ~ ADR-009，**所有"为什么这么选"都在这里**
 3. `docs/log.md` —— 最后两条（线上崩溃修复、假数字修复）
 4. `docs/deploy.md` —— 线上在哪、怎么改、怎么回滚
 5. `docs/handover-D1.md` §3、§4 —— 本地怎么跑、规则三档可信度的由来
@@ -207,7 +220,7 @@
 
 ```bash
 git log --oneline -5
-cd backend && .venv/bin/pytest -q          # 期望 18 passed
+cd backend && .venv/bin/pytest -q          # 期望 22 passed
 cd .. && python3 scripts/verify_rules.py   # 期望 "全部通过（0 项警告，0 项失败）"
 curl -s http://43.142.12.100/health        # 期望 rules: 40
 ```
