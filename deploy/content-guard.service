@@ -1,0 +1,14 @@
+[Unit]
+Description=Content Guard backend (FastAPI)
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/content-guard/backend
+EnvironmentFile=/home/ubuntu/content-guard/backend/.env
+ExecStart=/home/ubuntu/content-guard/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

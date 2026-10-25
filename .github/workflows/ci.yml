@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  rules:
+    name: 规则真实性
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 校验规则（字段 / 唯一 / 原文逐字比对）
+        run: python3 scripts/verify_rules.py
+
+  backend:
+    name: 后端 lint + 测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 安装依赖
+        run: pip install -r backend/requirements.txt
+      - name: ruff
+        run: cd backend && ruff check app tests
+      - name: pytest
+        run: cd backend && pytest -q
+
+  frontend:
+    name: 前端构建
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: 安装依赖
+        run: cd frontend && npm ci
+      - name: 静态导出
+        run: cd frontend && npm run build
