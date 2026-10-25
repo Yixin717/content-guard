@@ -22,14 +22,14 @@
 | Git 提交数 | **42** | `git rev-list --count HEAD` |
 | 是否已推送 | **是**，`main...origin/main` 无差异 | `git status -sb` |
 | 工作区 | **干净**（无未提交改动） | `git status --short` |
-| 后端测试 | **22 passed** | `cd backend && .venv/bin/pytest -q` |
+| 后端测试 | **23 passed** | `cd backend && .venv/bin/pytest -q` |
 | 规则总数 | **40** | `python3 scripts/verify_rules.py` |
 | 规则可信分档 | verified 20 / platform_official 19 / platform_pending 1 | 同上 |
 | 规则类别 | 绝对化 10 / 虚假宣传 10 / 平台 20 | 同上 |
 | 后端接口 | 8 个（health/generate/check/analyze/rewrite/confirm/history/rules） | `backend/app/api.py` |
 | 数据库表 | 5 张（products/drafts/checks/confirmations/rules） | `backend/app/db.py` |
 | 前端页面 | 5 个 + 全局错误页 | `frontend/app/` |
-| 检查-改写一致性 | 改动条数 = 违规条数（后端强制，`unresolved` 单独标） | `POST /api/analyze`、`backend/tests/test_api.py` |
+| 检查-改写一致性 | 改动条数 = 违规条数（后端强制，`unresolved` 单独标）；问题按**原文顺序**编号 | `POST /api/analyze`、`backend/tests/test_api.py` |
 | 线上健康 | `{"status":"ok","model":"deepseek-chat","rules":40}` | `curl http://43.142.12.100/health` |
 | 线上版本 | **已部署 ADR-008 + ADR-009** | 工作台无「改写中」；状态条无模型名 |
 | 线上对账 | analyze 5817/689（5.2s，3 次调用）→ 4 处违规 / 4 条改动，编号 1:1 | 2026-10-25 21:06 实测 |
@@ -220,7 +220,7 @@
 
 ```bash
 git log --oneline -5
-cd backend && .venv/bin/pytest -q          # 期望 22 passed
+cd backend && .venv/bin/pytest -q          # 期望 23 passed
 cd .. && python3 scripts/verify_rules.py   # 期望 "全部通过（0 项警告，0 项失败）"
 curl -s http://43.142.12.100/health        # 期望 rules: 40
 ```

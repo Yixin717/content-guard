@@ -221,3 +221,29 @@ def test_analyze_usage_covers_check_rewrite_and_recheck(client):
     # 检查 1 次 + 改写 1 次 + 复检 1 次
     assert body["usage"]["attempts"] == 3
     assert body["usage"]["tokens_in"] == 30
+
+
+class ReverseOrderLLM(FakeLLM):
+    """故意先返回后面的问题，验证系统会按原文顺序重排。"""
+
+    def chat_json(self, system, user, schema, max_retries=2):
+        if schema is CheckPayload:
+            usage = {"tokens_in": 10, "tokens_out": 20, "latency_ms": 5, "attempts": 1}
+            return CheckPayload(
+                violations=[
+                    ViolationPayload(rule_id="ABS-001", quote="国家级品质", severity="high", confidence=0.9),
+                    ViolationPayload(rule_id="ABS-004", quote="全网最低价", severity="high", confidence=0.9),
+                ],
+                suspected=[],
+                human_review=False,
+            ), usage
+        return super().chat_json(system, user, schema, max_retries)
+
+
+def test_violations_sorted_by_position_in_text(client):
+    app.dependency_overrides[get_llm] = lambda: ReverseOrderLLM()
+    body = client.post("/api/analyze", json={"content": "全网最低价，国家级品质，69 两条"}).json()
+    assert [v["rule_id"] for v in body["violations"]] == ["ABS-004", "ABS-001"]
+    assert [v["n"] for v in body["violations"]] == [1, 2]
+    # 改动顺序也跟着原文顺序，编号一一对应
+    assert [c["n"] for c in body["rewrite"]["changes"]] == [1, 2]

@@ -108,9 +108,9 @@ export default function WorkbenchPage() {
     n: c.n ?? i + 1,
     status: c.status || (c.after ? "fixed" : "unresolved"),
   }));
-  const fixedChanges = changes.filter((c) => c.status === "fixed" && c.after);
-  const unresolved = changes.filter((c) => c.status !== "fixed" || !c.after);
   const remaining = rw?.remaining ?? 0;
+  const unresolvedCount = changes.filter((c) => c.status !== "fixed").length;
+  const newHits = Math.max(0, remaining - unresolvedCount);
   const stage = rw ? "rewritten" : "checked";
   const canConfirm = !!rw || violations.length === 0;
   const reduction = rw?.reduction;
@@ -281,12 +281,6 @@ export default function WorkbenchPage() {
                 </div>
               ) : rw ? (
                 <>
-                  <div className={`result-bar${remaining ? " warn" : ""}`}>
-                    <Icon name={remaining ? "alert" : "check"} size={14} />
-                    {remaining
-                      ? `${fixedChanges.length} 处已修 · 复检仍有 ${remaining} 处，需人工确认`
-                      : `复检通过：${fixedChanges.length} 处已修，剩余 0 处`}
-                  </div>
                   <div className="rewrite-text">
                     {rw.title && <div className="title">{rw.title}</div>}
                     <p>
@@ -308,18 +302,14 @@ export default function WorkbenchPage() {
                       改动明细（{changes.length} 处，与左侧标记一一对应）
                     </div>
                     {changes.map((c) => {
-                      const ok = c.status === "fixed" && c.after;
+                      const ok = c.status === "fixed";
                       return (
                         <div className={`change${ok ? "" : " unresolved"}`} key={c.n}>
                           <span className="idx">{c.n}</span>
                           <div>
                             <span className="del">{c.before}</span>
                             <span className="arrow">→</span>
-                            {ok ? (
-                              <span className="ins">{c.after}</span>
-                            ) : (
-                              <span className="ins">未自动改好</span>
-                            )}
+                            <span className="ins">{ok ? c.after || "已随其他改动消除" : "未自动改好"}</span>
                             <div className="change-why">
                               {c.reason}
                               {c.rule_id ? ` · ${c.rule_id}` : ""}
@@ -328,9 +318,14 @@ export default function WorkbenchPage() {
                         </div>
                       );
                     })}
-                    {unresolved.length > 0 && (
+                    {unresolvedCount > 0 && (
                       <p className="note" style={{ marginTop: 10 }}>
                         标「未自动改好」的条目需要人工处理——系统不会为了凑数编一条改动出来。
+                      </p>
+                    )}
+                    {newHits > 0 && (
+                      <p className="note" style={{ marginTop: 6 }}>
+                        复检另有 {newHits} 处命中，不在上面的改动明细里，需人工确认。
                       </p>
                     )}
                   </div>

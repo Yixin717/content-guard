@@ -163,8 +163,16 @@ def check_text(
             continue
         result.suspected.append(Suspected(quote=quote, reason=s.reason.strip(), severity=s.severity or "medium"))
 
+    # 按「在原文里出现的位置」从上往下排：用户是逐行读的，
+    # 编号 ①②③ 必须跟阅读顺序一致；同一位置再按严重度排。
     order = {"high": 0, "medium": 1, "low": 2}
-    result.violations.sort(key=lambda x: order.get(x.severity, 9))
+    draft_text = f"{title}\n{script}"
+
+    def _pos(v: Violation) -> int:
+        idx = draft_text.find(v.quote)
+        return idx if idx >= 0 else 10**9
+
+    result.violations.sort(key=lambda x: (_pos(x), order.get(x.severity, 9)))
     result.uncertain.sort(key=lambda x: order.get(x.severity, 9))
 
     if result.suspected:
