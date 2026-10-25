@@ -22,7 +22,7 @@
 | Git 提交数 | **42** | `git rev-list --count HEAD` |
 | 是否已推送 | **是**，`main...origin/main` 无差异 | `git status -sb` |
 | 工作区 | **干净**（无未提交改动） | `git status --short` |
-| 后端测试 | **28 passed** | `cd backend && .venv/bin/pytest -q` |
+| 后端测试 | **29 passed** | `cd backend && .venv/bin/pytest -q` |
 | 规则总数 | **40** | `python3 scripts/verify_rules.py` |
 | 规则可信分档 | verified 20 / platform_official 19 / platform_pending 1 | 同上 |
 | 规则类别 | 绝对化 10 / 虚假宣传 10 / 平台 20 | 同上 |
@@ -76,7 +76,7 @@
 | CI | 规则校验 / 后端 lint+测试 / 前端构建 三个 job |
 | 线上事故修复 | 改写结果字段不一致导致白屏（详见 §5） |
 | 历史与隔离（ADR-010） | `events` 事件表（查过就算、点开恢复）；匿名设备号 `X-Owner-Id`；同一条文案查 3 次 3 条；越权一律 404 |
-| 工作台一致性（ADR-009） | `/api/analyze` 一次算完；改写改为逐条局部替换；改动条数 = 违规条数；条款原文内联；蓝字高亮；配色 #FFFAF0/#FFFDF7 |
+| 工作台一致性（ADR-009） | `/api/analyze` 一次算完；**原文双检取并集**；逐条局部替换；改动条数 = 违规条数；条款原文内联；蓝字高亮；配色 #FFFAF0/#FFFDF7 |
 | 数据真实性（B-008） | 状态条改真实 `usage`；后端三接口补 `usage` 并全量累计；每请求一行 `llm_usage` 日志；首页「最近」改读 `/api/history`（ADR-008） |
 
 ### 3.2 与计划的偏差
@@ -147,7 +147,8 @@
 | **React hooks 不能在提前 return 之后** | `frontend/app/workbench/page.jsx` | 曾经把 `useMemo` 写在 `if (!sample) return null` 后面 → React error #310，整页报错。所有 hook 提到 return 之前 |
 | **`next build` 会清空 `out/`** | — | 构建后再生成临时 seed 页；先放会被删掉，`http.server` 就只剩 404 |
 | 粘贴文案的标题 = 正文第一行 | `backend/app/api.py`（`_resolve_and_check`） | 若同时当 `title` 传给检查器，同一句话会检查两遍、改写可能只改到 title。粘贴场景统一 `title=""` |
-| **一次 analyze 约 5–10 秒** | `POST /api/analyze` | 3 次模型调用（检查 + 改写 + 复检）。前端显示真实计时，不要加"假进度" |
+| **一次 analyze 约 5–10 秒** | `POST /api/analyze` | 3 次模型调用（**两次检查原文** + 一次改写）。前端显示真实计时，不要加"假进度" |
+| **不要再把"改写后的复检"当结论** | `backend/app/api.py`（analyze） | 复检命中的句子可能在改写文里、指不回用户原句，只能给出没有位置的计数——这版已改成原文双检 + 逐条标注（ADR-009 修订） |
 | **匿名设备号不是认证** | `backend/app/api.py`（`get_owner`） | 伪造 `X-Owner-Id` 就能看别人的记录；UUID 不可猜，但不是安全边界，PRD 里要如实写 |
 | 老数据没有归属 | `drafts.owner_id` 为 NULL | 改造前的草稿不归属任何人、历史列表不出现；不要"顺手给它们补个 owner" |
 
@@ -223,7 +224,7 @@
 
 ```bash
 git log --oneline -5
-cd backend && .venv/bin/pytest -q          # 期望 28 passed
+cd backend && .venv/bin/pytest -q          # 期望 29 passed
 cd .. && python3 scripts/verify_rules.py   # 期望 "全部通过（0 项警告，0 项失败）"
 curl -s http://43.142.12.100/health        # 期望 rules: 40
 ```
