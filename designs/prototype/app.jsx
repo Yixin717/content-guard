@@ -127,10 +127,7 @@ function TopBar({ stage, canConfirm, onBack, entryLabel = "粘贴" }) {
 }
 
 /* ---------- 入口页 ---------- */
-function Entry({ onStart }) {
-  const [mode, setMode] = useState(
-    new URLSearchParams(location.search).get("mode") === "write" ? "write" : "check"
-  );
+function Entry({ onStart, mode, setMode }) {
   const [text, setText] = useState(
     "姐妹们，这条裤子全网最低价！三天根治大腿根的痘印，国家级品质，加V领福利。我自己穿了三个月，洗完不皱，垂感一直在。69 两条，周末截止。"
   );
@@ -522,13 +519,18 @@ function App() {
   const params = new URLSearchParams(location.search);
   const initialView = params.get("view") === "workbench" ? "workbench" : "entry";
   const [view, setView] = useState(initialView);
+  const [entryMode, setEntryMode] = useState(params.get("mode") === "write" ? "write" : "check");
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       {view === "entry" ? (
         <>
-          <TopBar stage="entry" entryLabel={mode === "write" ? "生成" : "粘贴"} canConfirm={false} />
-          <Entry onStart={() => setView("workbench")} />
+          <TopBar
+            stage="entry"
+            entryLabel={entryMode === "write" ? "生成" : "粘贴"}
+            canConfirm={false}
+          />
+          <Entry onStart={() => setView("workbench")} mode={entryMode} setMode={setEntryMode} />
         </>
       ) : (
         <Workbench
@@ -541,4 +543,32 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+/* 出错时不要白屏：把错误直接显示在页面上，方便定位 */
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 32, fontFamily: "ui-monospace, Menlo, monospace", fontSize: 13 }}>
+          <div style={{ color: "#e32d14", fontWeight: 600, marginBottom: 8 }}>原型渲染出错</div>
+          <pre style={{ whiteSpace: "pre-wrap", color: "rgba(0,0,0,.7)" }}>
+            {String(this.state.error && this.state.error.stack ? this.state.error.stack : this.state.error)}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+);
