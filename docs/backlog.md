@@ -53,10 +53,24 @@
 
 ### B-008 · 把示例数字全部换成真实指标（P0，别再拖）
 
-- **现状**：工作台底部状态条的 `tokens 9,254 / 1,198`、`15.7s` 是写死的（`frontend/app/workbench/page.jsx:322`）；首页"最近"是静态 mock（`frontend/app/page.jsx:9`）
+- **状态**：✅ 已完成（2026-10-25，ADR-008）
+- **现状**：工作台底部状态条的 `tokens 9,254 / 1,198`、`15.7s` 是写死的（`frontend/app/workbench/page.jsx`）；首页"最近"是静态 mock（原 `frontend/app/page.jsx`）
 - **风险**：demo 或面试时会被当成真实指标——属于"假数字"，一旦被追问就崩
 - **做法**：状态条读接口 `usage`；最近列表读 `/api/history`
-- **验收**：`grep -rn "9,254\|15.7s" frontend/` 无结果；页面数字与 `journalctl` 中该次请求一致
+- **实际改了什么**（比原计划大，因为原计划做不成）：
+  1. `check` / `rewrite` 响应补 `usage`（原来被 `response_model` 裁掉了）；`generate` 的 usage 补上自检/改写/复检，原来只算写作；
+  2. `api.py` 每次请求打一行 `llm_usage …` 日志，`journalctl -u content-guard | grep llm_usage` 可与页面数字对账；
+  3. 数据层 `lib/api.js` 透传 `usage`，`lib/usage.js` 的 `sumUsage` 负责相加；`StatusBar` 不再有默认值；
+  4. 首页「最近」改为 `GET /api/history`（显示标题 / 来源 / 确认时间）。
+- **验收**：`grep -rn "9,254\|15.7s" frontend/` 无结果 ✅；桩接口实测 1234/210 + 800/150 → 页面 `tokens 2,034 / 360`、`耗时 2.6s` ✅；线上对账待部署后执行（handover §6 ②）
+
+### B-009 · `eval/` 下的 JSON 会被 .gitignore 吃掉
+
+- **现状**：`.gitignore` 有 `eval/*.json`（当初是为了不提交评测中间产物），但 D8 的评测脚本/报告也放在 `eval/`
+- **风险**：将来把样本或期望值放 `eval/` 会产生"明明写了却没提交"的静默丢失
+- **做法**：样本继续放 `data/eval_cases/*.json`（已入库，不受影响）；`eval/` 只放 `run_eval.py` 与 `report-*.md`。若确实要在 `eval/` 放 json，先改 `.gitignore` 为更精确的路径
+- **优先级**：P1（D8 动手前确认一次即可）
+
 
 ### B-007 · 语气贴不贴小红书，是 prompt 问题，不是训练问题
 

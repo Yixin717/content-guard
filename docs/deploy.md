@@ -51,10 +51,15 @@ HOST=43.142.12.100 bash scripts/deploy.sh
 ssh ubuntu@43.142.12.100
 sudo systemctl status content-guard      # 服务状态
 sudo journalctl -u content-guard -n 50   # 后端日志
+sudo journalctl -u content-guard -f | grep llm_usage   # 每次请求的 tokens/耗时（ADR-008，可与页面状态条对账）
 sudo tail -f /var/log/nginx/access.log   # 访问日志
 sudo systemctl restart content-guard     # 重启后端
 sudo nginx -t && sudo systemctl reload nginx
 ```
+
+> 若线上状态条仍显示写死的 `9,254 / 15.7s`，说明跑的还是 ADR-008 之前的版本，重新部署即可。
+> 部署后，页面数字应等于该任务 `llm_usage path=/api/check …` 与 `path=/api/rewrite …` 两条日志的
+> `tokens_in/tokens_out` 之和（口径见 ADR-008）。
 
 ## 六、还没做的
 

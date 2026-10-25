@@ -1,6 +1,6 @@
 # D2 交接文档
 
-> 更新时间：2026-10-25（D6 部署上线后）
+> 更新时间：2026-10-25（B-008「假数字」修复后；线上仍是修复前的版本）
 > 适用对象：**没参与过这个项目的新会话**
 > 目标：只读本文件 + 它指的文件，就能无歧义接手
 
@@ -9,8 +9,9 @@
 ## 0. 一眼看懂
 
 - **项目**：Content Guard —— 小红书带货文案的「发布前体检」。商家把要发的文案贴进来（或让 AI 写一版），系统按 40 条规则逐条检查、**每条违规指回具体条款**，自动给出合规改写，人工确认后导出。
-- **现在到哪**：**D0–D6 主体已完成并上线** → http://43.142.12.100/ （HTTP，无域名）。D2 的规则扩容与访谈、D8 的评测**未做**。
-- **一句话结论**：产品内核是「检查与修订」，生成只是入口（ADR-001）；生成结果也必须内置自检（ADR-003）。**别把它当成"AI 文案生成器"来改。**
+- **现在到哪**：**D0–D6 主体已完成并上线** → http://43.142.12.100/ （HTTP，无域名）。**B-008（状态条假数字 / 静态「最近」）已修但未部署**；D2 的规则扩容与访谈、D8 的评测**未做**。
+- **一句话结论**：产品内核是「检查与修订」，生成只是入口（ADR-001）；生成结果也必须内置自检（ADR-003）；**页面上的数字必须来自后端 `usage`，不许写死**（ADR-008）。**别把它当成"AI 文案生成器"来改。**
+
 
 ---
 
@@ -18,10 +19,10 @@
 
 | 项 | 数值 / 状态 | 核对方式 |
 |---|---|---|
-| Git 提交数 | **36** | `git rev-list --count HEAD` |
+| Git 提交数 | **41** | `git rev-list --count HEAD` |
 | 是否已推送 | **是**，`main...origin/main` 无差异 | `git status -sb` |
 | 工作区 | **干净**（无未提交改动） | `git status --short` |
-| 后端测试 | **14 passed** | `cd backend && .venv/bin/pytest -q` |
+| 后端测试 | **18 passed** | `cd backend && .venv/bin/pytest -q` |
 | 规则总数 | **40** | `python3 scripts/verify_rules.py` |
 | 规则可信分档 | verified 20 / platform_official 19 / platform_pending 1 | 同上 |
 | 规则类别 | 绝对化 10 / 虚假宣传 10 / 平台 20 | 同上 |
@@ -29,9 +30,11 @@
 | 数据库表 | 5 张（products/drafts/checks/confirmations/rules） | `backend/app/db.py` |
 | 前端页面 | 5 个 + 全局错误页 | `frontend/app/` |
 | 线上健康 | `{"status":"ok","model":"deepseek-chat","rules":40}` | `curl http://43.142.12.100/health` |
+| 线上版本 | **旧版**（本次假数字修复尚未部署） | 页面状态条仍是 `9,254` 即为旧版 |
 | 线上改写链路 | 实测 before 2 → after 0 | `POST /api/check` → `/api/rewrite` |
 | 评测样本 | **1 条**（`data/eval_cases/001-zara-jacket.json`） | `ls data/eval_cases` |
-| CI | 已配置 3 个 job，**首次运行结果待确认** | `.github/workflows/ci.yml` |
+| CI | 3 个 job 全绿 | `31415ca`/`5a756e1`/`f8cc484` 的 run 均 success |
+
 
 ---
 
@@ -46,10 +49,13 @@
 | `.env` | 含 DeepSeek key（线上在服务器 `~/content-guard/backend/.env`） |
 | `backend/.venv/`、`frontend/node_modules/`、`frontend/.npm-cache/` | 依赖，可重装 |
 | `frontend/out/`、`frontend/.next/` | 构建产物 |
-| `data/*.db`、`out/*.json` | 运行时数据 |
+| `data/*.db`、`data/*.db-wal`、`data/*.db-shm`、`out/*.json` | 运行时数据 |
 | `designs/prototype/screens/*` | **例外：这些截图已入库**，是 README/演示素材 |
 
+> **2026-10-25 补**：`data/content_guard.db-wal`、`.db-shm` 曾被误提交（`.gitignore` 只写了 `*.db`，盖不住这两个后缀），已 `git rm --cached` 并补规则。这类文件入库没有任何意义，还会让 `git status` 一直脏。
+>
 > 若接手时 `git status` 不为空：先看 `git diff --stat`，把改动归类成"设计稿 / 代码 / 文档"，分别确认后再提交，**不要 `git add -A` 一把梭**——历史上就是因为这个习惯误删过演示数据。
+
 
 ---
 
@@ -66,6 +72,7 @@
 | 部署 | 上线公网 IP；Nginx + systemd + 一键脚本 + 备份；`docs/deploy.md` |
 | CI | 规则校验 / 后端 lint+测试 / 前端构建 三个 job |
 | 线上事故修复 | 改写结果字段不一致导致白屏（详见 §5） |
+| 数据真实性（B-008） | 状态条改真实 `usage`；后端三接口补 `usage` 并全量累计；每请求一行 `llm_usage` 日志；首页「最近」改读 `/api/history`（ADR-008） |
 
 ### 3.2 与计划的偏差
 
@@ -97,35 +104,41 @@
 | 7 | 微调模型学小红书语气 | 样本不够、规则一变就要重训、容易连"全网最低"一起学 | few-shot + 风格清单（backlog B-007） |
 | 8 | 规则页默认纯 mock 数据 | 出现"共 7 条"与状态条"40 条"自相矛盾的画面 | 规则/历史**优先读真接口**，后端没起才退回样例 |
 | 9 | 用 390px 宽截图判断移动端是否溢出 | headless Chrome 最小视口是 500px，390 截图是"500 渲染 + 390 裁剪"的假象，白改两轮 CSS | 在页面里量 `innerWidth / scrollWidth` |
+| 10 | **只把页面里的两个字符串换掉**（"读一下接口 usage 就行"） | `check`/`rewrite` 的 `response_model` 里压根没有 `usage` 字段——改完只是换了个假数字，而且 `grep` 验收还查不出来 | **ADR-008**：后端三接口补 `usage` 且全量累计 + 每请求一行日志，前端只透传；没数字就不显示 |
 
 ---
 
 ## 5. 未决问题 / 已知 bug / 坑
 
-### 5.1 已知 bug（都还没修，按危险度排序）
+### 5.1 已知 bug（按危险度排序）
 
-| # | 问题 | 位置 | 影响 |
+| # | 问题 | 位置 | 状态 / 影响 |
 |---|---|---|---|
-| **B1** | **状态条数字是写死的**（`tokens 9,254 / 1,198`、`15.7s`） | `frontend/app/workbench/page.jsx:322` | demo/面试时会被当成真实指标——**这是最危险的一条，属于"假数字"** |
-| **B2** | 首页"最近"是静态 mock 列表 | `frontend/app/page.jsx:9`、`:143` | 与真实历史不一致 |
-| **B3** | mock 模式下确认接口用假 `draft_id` | `frontend/lib/api.js`（`confirm`） | 接真后端会 404；线上 `USE_MOCK=0` 故不受影响 |
-| **B4** | `/api/generate` 约 19s，前端只有"生成中…" | `frontend/app/page.jsx`（`busy` 态） | ADR-003 要求分阶段进度（生成中/自检中/修复中），未实现 |
-| **B5** | 无 HTTPS、无 API 限流 | `deploy/nginx-content-guard.conf` | 明文传输；`/api/generate` 公网可刷（每次约 2 分钱） |
-| B6 | `PLT-002 诱导互动` 仍是 `platform_pending` | `rules.csv` | 该条引用不可逐字验证 |
-| B7 | SQLite 无定时备份 | `data/content_guard.db` | 服务器故障即丢数据 |
+| ~~B1~~ | ~~状态条数字是写死的~~ | `frontend/app/workbench/page.jsx`、`components/StatusBar.jsx` | ✅ **已修**（ADR-008）：改读 `usage`，无数字不显示。桩数据实测 1234/210 + 800/150 → `tokens 2,034 / 360`、`2.6s` |
+| ~~B2~~ | ~~首页"最近"是静态 mock 列表~~ | `frontend/app/page.jsx` | ✅ **已修**：改读 `GET /api/history`（标题 / 来源 / 确认时间） |
+| **B3** | mock 模式下确认接口用假 `draft_id` | `frontend/lib/api.js`（`confirm`） | 未修。接真后端会 404；线上 `USE_MOCK=0` 故不受影响 |
+| **B4** | `/api/generate` 约 19s，前端只有"生成中…" | `frontend/app/page.jsx`（`busy` 态） | 未修。ADR-003 要求分阶段进度（生成中/自检中/修复中），未实现 |
+| **B5** | 无 HTTPS、无 API 限流 | `deploy/nginx-content-guard.conf` | 未修。明文传输；`/api/generate` 公网可刷（每次约 2 分钱） |
+| B6 | `PLT-002 诱导互动` 仍是 `platform_pending` | `rules.csv` | 未修。该条引用不可逐字验证 |
+| B7 | SQLite 无定时备份 | `data/content_guard.db` | 未修。服务器故障即丢数据 |
 
 ### 5.2 坑（踩过的，带位置）
 
 | 坑 | 位置 | 说明 |
 |---|---|---|
-| `NEXT_PUBLIC_API_BASE` 必须用 `??` 不能用 `\|\|` | `frontend/lib/api.js:15` | 空字符串是 falsy，`\|\|` 会回退成 localhost，线上就变成"浏览器连自己电脑" |
-| mock 与后端字段名不一致 → 白屏 | `frontend/lib/api.js:38`（`normalizeRewrite`） | mock 用 `text`、后端用 `script`；**必须在数据层归一化，UI 不直接读后端字段** |
-| CORS 只放行 3000 端口 | `backend/app/api.py:58` | 静态预览用 4311/4321 会被拦，且**前端静默退回 mock，页面看不出异常** |
+| `NEXT_PUBLIC_API_BASE` 必须判断"是否定义"，不能判断真假值 | `frontend/lib/api.js:14` | 空字符串是 falsy，用 `\|\|` 会回退成 localhost，线上就变成"浏览器连自己电脑" |
+| mock 与后端字段名不一致 → 白屏 | `frontend/lib/api.js`（`normalizeRewrite`） | mock 用 `text`、后端用 `script`；**必须在数据层归一化，UI 不直接读后端字段** |
+| **Pydantic `response_model` 会悄悄裁掉没声明的字段** | `backend/app/schemas.py` | 业务层 `to_dict()` 里明明有 `usage`，`CheckResponse` 没写这个字段 → 接口就是不返回。**加字段必须同时改 schema 和调用处**，否则前端拿到 `undefined` 还以为后端没算 |
+| **mock 数据没有 `usage`** | `frontend/lib/mock.js` | 本地 mock 模式下状态条**不显示** tokens / 耗时。这是故意的（ADR-008），别为了"看起来完整"补个默认值 |
+| **线上 `/api/history` 的 `created_at` 是 ISO 格式** | `frontend/app/page.jsx` | `2026-10-25T15:41:07+08:00`，直接 `slice` 会显示 `10-25T15:41`；先 `replace("T"," ")` 再截 |
+| CORS 只放行 3000 端口 | `backend/app/api.py`（`allow_origin_regex`） | 旧版写死 3000，静态预览用 4311/4321 会被拦，且**前端静默退回 mock，页面看不出异常**；现为正则放行 localhost 任意端口 |
 | 部署必须关 mock | `scripts/deploy.sh`（构建行） | 首次部署忘了关，线上跑的是假数据 |
 | 服务器 8000 被旧项目占用 | 服务器 `zero-backend.service` | 已 `stop` + `disable`，否则新服务起不来 |
 | 本地 Python 必须是 3.9 | `backend/.venv` | DSH 自带 3.12 因代码签名装不了 `pydantic_core` |
+| 本机常见"端口被旧服务占着" | 8000 / 8010 / 4321 | 起服务前先 `lsof -nP -iTCP:<port> -sTCP:LISTEN`；**不要想当然 kill，先看清是谁的**（本机就出现过误杀预览服务） |
 | PDF 里的康熙部首字符 | `scripts/verify_rules.py:46`（`RADICAL_FIX`） | `⻛/⻝/⻓` 与「风/食/长」码位不同，不映射就永远匹配不上 |
 | headless Chrome 最小视口 500px | — | 390 宽截图不能判断窄屏溢出 |
+| 无头 Chrome 要带 `--user-data-dir` | — | 否则报 `Failed to create headless user data directory container`，`--dump-dom` 输出为空 |
 
 ### 5.3 明确不做（防止新会话加戏）
 
@@ -146,28 +159,39 @@
 
 ---
 
-## 6. 下一步（只列 3 条，每条带验收标准）
+## 6. 下一步（每条带验收标准）
 
-### ① 干掉所有假数字（最高优先）
-- 状态条改为**本次请求真实 tokens / 耗时**（来源：接口 `usage` 字段，后端已在 `meta` 里返回）
+### ① ✅ 已完成：干掉所有假数字（2026-10-25，ADR-008）
+- 状态条改为**本次任务真实 tokens / 耗时**（来源：后端 `usage`；`check` + `rewrite` 相加）
 - 首页"最近"改为 `GET /api/history` 真实数据
-- **验收**：`grep -rn "9,254\|15.7s" frontend/` 无结果；工作台刷新后状态条数字与 `journalctl` 中该次请求的 token 数一致。
+- 为了让数字是真的，顺带做了三件原计划没有的事：`check`/`rewrite` 响应补 `usage`、`generate` 补算自检与改写、每请求一行 `llm_usage` 日志
+- **验收记录**：
+  - `grep -rn "9,254\|15.7s" frontend/` → 无结果 ✅
+  - 桩接口（check 1234/210 1.5s + rewrite 800/150 1.1s）→ 页面 `tokens 2,034 / 360`、`耗时 2.6s` ✅
+  - `/drafts` 生成入口 4321/777 12.3s → `tokens 4,321 / 777`、`耗时 12.3s` ✅
+  - 线上对账**尚未做**，因为下面这一条还没做 ↓
 
-### ② 限流 + HTTPS 前置
+### ② 部署本次改动（线上现在还是"假数字版"）
+- `HOST=43.142.12.100 bash scripts/deploy.sh`
+- 本地那两个旧 uvicorn（8000/8010）也跑的是旧代码，要重启才有 `usage` 字段
+- **验收**：线上工作台状态条出现真实 tokens（不再有 `9,254`）；同时开一个窗口跑 `sudo journalctl -u content-guard -f | grep llm_usage`，页面数字应等于该任务 check + rewrite 两条日志之和。
+
+### ③ 限流 + HTTPS 前置
 - Nginx 加 `limit_req`（按 IP，如 10 次/分钟），超限返回 429
 - **验收**：连续快速请求 `/api/generate` 第 11 次返回 429；把测试命令与结果写进 `docs/deploy.md`。
 
-### ③ 评测集 12 条 + 跑第一轮指标
+### ④ 评测集 12 条 + 跑第一轮指标
 - 从用户日常笔记补到 12 条，写 `eval/run_eval.py`
 - **验收**：脚本输出 `recall / false_positive / citation_accuracy` 三项数字，报告落到 `eval/report-v1.md`。
+- **注意**：`.gitignore` 里有 `eval/*.json`，样本继续放 `data/eval_cases/`，别放 `eval/`（backlog B-009）。
 
 ---
 
 ## 7. 新会话开场：按这个顺序读
 
 1. **本文件**（你正在读）
-2. `docs/decisions.md` —— ADR-001 ~ ADR-007，**所有"为什么这么选"都在这里**
-3. `docs/log.md` —— 最后两条（部署上线、线上崩溃修复）
+2. `docs/decisions.md` —— ADR-001 ~ ADR-008，**所有"为什么这么选"都在这里**
+3. `docs/log.md` —— 最后两条（线上崩溃修复、假数字修复）
 4. `docs/deploy.md` —— 线上在哪、怎么改、怎么回滚
 5. `docs/handover-D1.md` §3、§4 —— 本地怎么跑、规则三档可信度的由来
 6. `docs/ui-structure.md` / `docs/ui-style.md` —— **改前端前必读**，否则会改回被否掉的方案
@@ -178,7 +202,7 @@
 
 ```bash
 git log --oneline -5
-cd backend && .venv/bin/pytest -q          # 期望 14 passed
+cd backend && .venv/bin/pytest -q          # 期望 18 passed
 cd .. && python3 scripts/verify_rules.py   # 期望 "全部通过（0 项警告，0 项失败）"
 curl -s http://43.142.12.100/health        # 期望 rules: 40
 ```
@@ -196,3 +220,7 @@ curl -s http://43.142.12.100/health        # 期望 rules: 40
 | 本地后端 | `cd backend && .venv/bin/uvicorn app.main:app --port 8000` |
 | 本地静态预览 | `python3 -m http.server 4321 --directory frontend/out` |
 | DeepSeek key | 本地 `.env`；线上 `~/content-guard/backend/.env` |
+| 用量对账 | `sudo journalctl -u content-guard \| grep llm_usage`（线上）、直接看终端 stderr（本地） |
+
+> 起服务前先 `lsof -nP -iTCP:<port> -sTCP:LISTEN` 看一眼：本机经常有旧 uvicorn 占着 8000/8010，静态预览也可能已被占用。
+

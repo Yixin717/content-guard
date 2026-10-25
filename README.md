@@ -51,7 +51,8 @@ HOST=43.142.12.100 bash scripts/deploy.sh   # 一键部署（含备份与健康�
 - 技术栈：Next.js 14（App Router，静态导出 `output: export`）+ 纯 CSS 令牌（沿用 `designs/prototype` 的设计稿）。
 - 默认 `NEXT_PUBLIC_USE_MOCK=1`：生成/检查/改写走内置样例，接口不通也能看界面。
 - 接真接口：`NEXT_PUBLIC_USE_MOCK=0 NEXT_PUBLIC_API_BASE=http://127.0.0.1:8000 npm run dev`。
-- 规则页与历史页**优先读真接口**，后端没起才退回样例。
+- 规则页、历史页、首页「最近」**优先读真接口**，后端没起才退回样例。
+- 状态条上的 tokens / 耗时**只显示后端 `usage` 返回的真实值**；mock 模式下不显示（不编数字，见 ADR-008）。
 
 ```bash
 cd frontend
@@ -64,18 +65,20 @@ npm run build    # 静态导出到 out/，D6 交给 Nginx
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/health` | 健康检查（返回模型名与规则条数） |
-| POST | `/api/generate` | `{brief, tone?}` → 3 版草稿 |
+| POST | `/api/generate` | `{brief, tone?}` → 3 版草稿（含自检与自动改写） |
 | POST | `/api/check` | `{draft_id}` 或 `{content}` → 违规 / 待确认 / 疑似 |
 | POST | `/api/rewrite` | `{draft_id}` → 改写 + 复检 + diff |
 | POST | `/api/confirm` | `{draft_id, final_content}` → 幂等确认，返回审计 id |
 | GET | `/api/history?limit=20` | 已确认记录 |
 | GET | `/api/rules?category=` | 规则列表 |
 
+> 生成 / 检查 / 改写三个接口都会返回 `usage`（tokens、模型耗时、请求耗时、调用次数），前端状态条直接显示它；每次请求还会往 stderr 打一行 `llm_usage …` 供 `journalctl` 对账（ADR-008）。
+
 > 环境要求：Python 3.9+（3.12 的 DSH 运行时因代码签名限制装不了 pydantic-core，用系统 Python 即可）。
 
 ## 规则库
 
-`rules.csv` 共 39 条：
+`rules.csv` 共 40 条：
 
 | 类别 | 前缀 | 依据 |
 |---|---|---|
@@ -88,7 +91,7 @@ npm run build    # 静态导出到 out/，D6 交给 Nginx
 | 状态 | 条数 | 含义 | 校验方式 |
 |---|---|---|---|
 | `verified` | 20 | 《广告法》《绝对化用语执法指南》条文 | `quote` 与官方原文逐字比对 |
-| `platform_official` | 18 | 社区规范 / 社区公约 2.0 / 「薯管家」推广规范 | `quote` 与存档原文逐字比对 |
+| `platform_official` | 19 | 社区规范 / 社区公约 2.0 / 「薯管家」推广规范 | `quote` 与存档原文逐字比对 |
 | `platform_pending` | 1 | 规则中心页面前端渲染，未取得可引用原文 | 仅概述，标注待人工截图补录 |
 
 > 平台规则中有一部分（推广占比 ≤20%、不连续两条、模板化内容）**属于账号级指标，单篇文案无法判定**，故意不进检查器，只写进 PRD，避免制造误报。详见 [存档说明](docs/sources/xiaohongshu/README.md)。
@@ -106,7 +109,7 @@ python3 scripts/verify_rules.py --check-urls  # 额外检查来源链接是否 2
 
 | 想知道什么 | 看哪里 |
 |---|---|
-| 现在做到哪了、怎么接着做 | **[D1 交接文档](docs/handover-D1.md)** ← 先看这个 |
+| 现在做到哪了、怎么接着做 | **[D2 交接文档](docs/handover-D2.md)** ← 先看这个 |
 | 前端长什么样（结构与风格） | [UI 结构说明](docs/ui-structure.md) · [UI 风格落地](docs/ui-style.md) |
 | 整体计划与每日目标 | [14 天执行计划](docs/plan.md) |
 | 每天做了什么 | [开发日志](docs/log.md) |
@@ -118,7 +121,7 @@ python3 scripts/verify_rules.py --check-urls  # 额外检查来源链接是否 2
 ## 目录
 
 ```
-rules.csv          规则源（39 条）
+rules.csv          规则源（40 条）
 scripts/           工具脚本（verify_rules.py）
 docs/plan.md       14 天计划
 docs/sources/      官方原文存档（引用底本）
