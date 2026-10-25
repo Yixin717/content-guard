@@ -20,7 +20,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import db
-from .check import check_text
+from .check import check_text, merge_check_results
 from .config import settings
 from .generate import generate_drafts
 from .llm import LLM, LLMError
@@ -294,12 +294,26 @@ def analyze(
     started = time.time()
     draft_id, title, content, result, display_title = _resolve_and_check(req, llm, owner)
     usage = dict(result.usage)
+
+    # 再独立检一次，取并集：宁可多看一眼，也不要漏掉读者能在原文里找到的问题。
+    # 两次结果都来自**用户自己的原文**，所以每条都能指回原句和条款。
+    try:
+        second = check_text(title, content, llm=llm)
+        usage = merge_usage(usage, second.usage)
+        merged = merge_check_results(result, second, title, content)
+        merged.usage = usage  # 两次检查的消耗都带上，后面改写再累加
+        result = merged
+    except LLMError:
+        pass  # 第二次失败就退回第一次的结果，不打断整个请求
+
     rewrite_out: Optional[RewriteOut] = None
     rewrite_error: Optional[str] = None
 
     if result.violations:
         try:
-            rw = rewrite_draft(title, "", content, result, llm=llm)
+            # verify=False：不再拿"改写后的复检"当结果给用户看。
+            # 复检只能定位到"改写文里还有问题"，指不回用户原句，只会制造新的疑问。
+            rw = rewrite_draft(title, "", content, result, llm=llm, verify=False)
             usage = merge_usage(result.usage, rw.usage)
             rewrite_out = RewriteOut(
                 title=rw.title,

@@ -108,12 +108,9 @@ export default function WorkbenchPage() {
     n: c.n ?? i + 1,
     status: c.status || (c.after ? "fixed" : "unresolved"),
   }));
-  const remaining = rw?.remaining ?? 0;
   const unresolvedCount = changes.filter((c) => c.status !== "fixed").length;
-  const newHits = Math.max(0, remaining - unresolvedCount);
   const stage = rw ? "rewritten" : "checked";
   const canConfirm = !!rw || violations.length === 0;
-  const reduction = rw?.reduction;
 
   // 后端直接给位置；mock 或缺失时按改写后的文本定位，保证一定标得出来
   const changeRanges = changes
@@ -249,9 +246,7 @@ export default function WorkbenchPage() {
               <h3>改写</h3>
               <span className="count">
                 {rw
-                  ? `${reduction != null ? `下降 ${Math.round(reduction * 100)}%` : "已改写"} · ${
-                      rw.rounds || 1
-                    } 轮`
+                  ? `${changes.length} 处已改写${unresolvedCount ? ` · ${unresolvedCount} 处需手工` : ""}`
                   : "待改写"}
               </span>
             </div>
@@ -309,7 +304,7 @@ export default function WorkbenchPage() {
                           <div>
                             <span className="del">{c.before}</span>
                             <span className="arrow">→</span>
-                            <span className="ins">{ok ? c.after || "已随其他改动消除" : "未自动改好"}</span>
+                            <span className="ins">{ok ? c.after || "已随其他改动消除" : "未自动改写"}</span>
                             <div className="change-why">
                               {c.reason}
                               {c.rule_id ? ` · ${c.rule_id}` : ""}
@@ -318,16 +313,7 @@ export default function WorkbenchPage() {
                         </div>
                       );
                     })}
-                    {unresolvedCount > 0 && (
-                      <p className="note" style={{ marginTop: 10 }}>
-                        标「未自动改好」的条目需要人工处理——系统不会为了凑数编一条改动出来。
-                      </p>
-                    )}
-                    {newHits > 0 && (
-                      <p className="note" style={{ marginTop: 6 }}>
-                        复检另有 {newHits} 处命中，不在上面的改动明细里，需人工确认。
-                      </p>
-                    )}
+
                   </div>
                 </>
               ) : null}

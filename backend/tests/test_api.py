@@ -212,13 +212,13 @@ def test_analyze_marks_unfixable_without_inventing_change(client):
     assert changes[0]["after"] == ""
     assert changes[0]["start"] == -1
     assert "需人工" in changes[0]["reason"]
-    # 复检仍然命中 → remaining 必须如实为 1，而不是写死 0
-    assert body["rewrite"]["remaining"] == 1
+    # 不再拿"改写后的复检"当结论：改写没改好就逐条标出来，其余不猜
+    assert body["rewrite"]["remaining"] == 0
 
 
-def test_analyze_usage_covers_check_rewrite_and_recheck(client):
+def test_analyze_usage_covers_both_checks_and_rewrite(client):
     body = client.post("/api/analyze", json={"content": "全网最低价，69 两条"}).json()
-    # 检查 1 次 + 改写 1 次 + 复检 1 次
+    # 独立检查 2 次（取并集）+ 改写 1 次
     assert body["usage"]["attempts"] == 3
     assert body["usage"]["tokens_in"] == 30
 
@@ -300,3 +300,39 @@ def test_cannot_check_other_devices_draft(client):
     body = client.post("/api/analyze", json={"content": "全网最低价，69 两条"}, headers=_hdr("A")).json()
     resp = client.post("/api/analyze", json={"draft_id": body["draft_id"]}, headers=_hdr("B"))
     assert resp.status_code == 404
+
+
+class SecondOpinionLLM(FakeLLM):
+    """两次检查结论不同：第二次补上了第一次漏掉的一条。"""
+
+    def __init__(self):
+        self.calls = 0
+
+    def chat_json(self, system, user, schema, max_retries=2):
+        if schema is CheckPayload:
+            self.calls += 1
+            usage = {"tokens_in": 10, "tokens_out": 20, "latency_ms": 5, "attempts": 1}
+            if self.calls == 1:
+                first = ViolationPayload(rule_id="ABS-004", quote="全网最低价", severity="high", confidence=0.9)
+                return CheckPayload(violations=[first], suspected=[], human_review=False), usage
+            return CheckPayload(
+                violations=[
+                    ViolationPayload(rule_id="ABS-004", quote="全网最低价", severity="high", confidence=0.9),
+                    ViolationPayload(rule_id="ABS-001", quote="国家级品质", severity="medium", confidence=0.9),
+                ],
+                suspected=[], human_review=False,
+            ), usage
+        return super().chat_json(system, user, schema, max_retries)
+
+
+def test_analyze_merges_two_checks_and_dedupes(client):
+    llm = SecondOpinionLLM()
+    app.dependency_overrides[get_llm] = lambda: llm
+    body = client.post("/api/analyze", json={"content": "全网最低价，国家级品质，69 两条"}).json()
+    # 两次检查取并集：第一次 1 条、第二次 2 条（含重复），最终 2 条，按原文顺序
+    assert [v["rule_id"] for v in body["violations"]] == ["ABS-004", "ABS-001"]
+    assert [v["n"] for v in body["violations"]] == [1, 2]
+    assert len(body["rewrite"]["changes"]) == 2
+    # 两条都来自用户原文，都能标位置、带法条
+    assert all(v["clause"] for v in body["violations"])
+    assert all(v["quote"] in body["script"] for v in body["violations"])

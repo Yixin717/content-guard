@@ -181,3 +181,52 @@ def check_text(
         result.human_review = True
         result.reason = result.reason or "未发现可确证的违规，建议人工复核"
     return result
+
+
+def merge_check_results(primary: "CheckResult", extra: "CheckResult", title: str, script: str) -> "CheckResult":
+    """两次独立检查取并集：同一轮里模型可能漏，也可能这次多看到一条。
+
+    - 同一 rule_id 且引用互相包含，视为同一条，不重复；
+    - 结果仍按原文位置排序，编号才能和阅读顺序一致。
+    """
+    merged = CheckResult(
+        violations=list(primary.violations),
+        suspected=list(primary.suspected),
+        uncertain=list(primary.uncertain),
+        human_review=primary.human_review,
+        reason=primary.reason,
+        dropped_unknown_rule_ids=list(primary.dropped_unknown_rule_ids),
+        dropped_quotes=list(primary.dropped_quotes),
+    )
+
+    def dup(existing: List[Violation], v: Violation) -> bool:
+        for m in existing:
+            if m.rule_id != v.rule_id:
+                continue
+            if m.quote == v.quote or m.quote in v.quote or v.quote in m.quote:
+                return True
+        return False
+
+    for v in extra.violations:
+        if not dup(merged.violations, v):
+            merged.violations.append(v)
+    for v in extra.uncertain:
+        if not dup(merged.uncertain, v):
+            merged.uncertain.append(v)
+    seen_suspected = {s.quote for s in merged.suspected}
+    for s in extra.suspected:
+        if s.quote not in seen_suspected:
+            merged.suspected.append(s)
+            seen_suspected.add(s.quote)
+
+    order = {"high": 0, "medium": 1, "low": 2}
+    text = f"{title}\n{script}"
+
+    def pos(v: Violation) -> int:
+        idx = text.find(v.quote)
+        return idx if idx >= 0 else 10**9
+
+    merged.violations.sort(key=lambda x: (pos(x), order.get(x.severity, 9)))
+    merged.uncertain.sort(key=lambda x: order.get(x.severity, 9))
+    merged.human_review = merged.human_review or bool(merged.violations)
+    return merged
