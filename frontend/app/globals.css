@@ -222,6 +222,15 @@ button:disabled { cursor: not-allowed; }
 
 .recent { margin-top: 48px; }
 
+.recent-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.recent-head h2 { flex: 1; margin: 0; }
+.recent-head .btn { padding: 2px 6px; }
+
 .recent h2 {
   font-size: 12px;
   font-weight: 500;
@@ -244,6 +253,19 @@ button:disabled { cursor: not-allowed; }
 .recent-row .t { flex: 1; font-size: 14px; }
 .recent-row .d { color: var(--ink-40); font-size: 12px; font-variant-numeric: tabular-nums; }
 .recent-row .n { color: var(--high); font-size: 12px; }
+.recent-row .n.clean { color: var(--ink-40); }
+
+/* 历史状态标签 */
+.tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  color: var(--ink-60);
+  background: rgba(60, 40, 20, 0.06);
+  white-space: nowrap;
+}
+.tag-ok { color: #1f7a3d; background: rgba(31, 122, 61, 0.10); }
+.history-list { border-top: 1px solid var(--line); }
 
 /* ---------- 工作台三栏 ---------- */
 .workbench {

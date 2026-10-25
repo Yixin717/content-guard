@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import sys
 import time
@@ -15,7 +16,7 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import db
@@ -32,6 +33,7 @@ from .schemas import (
     CheckResponse,
     ConfirmRequest,
     ConfirmResponse,
+    EventDetailResponse,
     GenerateRequest,
     GenerateResponse,
     HistoryResponse,
@@ -85,6 +87,15 @@ def log_usage(path: str, usage: dict, started: float, **fields: object) -> dict:
     return usage
 
 
+def get_owner(x_owner_id: str = Header(default="")) -> str:
+    """匿名设备号：前端用 localStorage 生成 UUID 放在请求头里。
+
+    没有账号体系，所以它只是"隔离命名空间"，不是身份认证——
+    伪造它就能看到别人的记录。小项目 demo 接受这个边界，PRD 里如实写。
+    """
+    return (x_owner_id or "").strip()[:64] or "public"
+
+
 def get_llm() -> LLM:
     """工厂函数：测试里可以 monkeypatch 掉，避免真实调用。"""
     return LLM()
@@ -116,7 +127,9 @@ def health() -> dict:
 
 
 @app.post("/api/generate", response_model=GenerateResponse)
-def generate(req: GenerateRequest, llm: LLM = Depends(get_llm)) -> GenerateResponse:
+def generate(
+    req: GenerateRequest, llm: LLM = Depends(get_llm), owner: str = Depends(get_owner)
+) -> GenerateResponse:
     started = time.time()
     product_id = f"p_{uuid.uuid4().hex[:10]}"
     rules = load_rules()
@@ -161,6 +174,7 @@ def generate(req: GenerateRequest, llm: LLM = Depends(get_llm)) -> GenerateRespo
                     "id": d.id, "product_id": product_id, "angle": d.angle, "angle_name": d.angle_name,
                     "title": d.title, "hook": d.hook, "script": d.script,
                     "selling_points": d.selling_points, "disclosure": d.disclosure,
+                    "owner_id": owner,
                 },
             )
 
@@ -188,17 +202,25 @@ def _numbered(violations) -> list:
     return [{**v.to_dict(), "n": i} for i, v in enumerate(violations, start=1)]
 
 
-def _resolve_and_check(req: CheckRequest, llm: LLM):
-    """解析目标（draft_id 或粘贴文本）→ 建/取草稿 → 检查 → 落库。"""
+def _resolve_and_check(req: CheckRequest, llm: LLM, owner: str):
+    """解析目标（draft_id 或粘贴文本）→ 建/取草稿 → 检查 → 落库。
+
+    返回 (draft_id, 检查用标题, 正文, 结果, 列表展示标题)。
+    """
     title, content, draft_id = "", req.content or "", None
+    display_title = ""
 
     if req.draft_id:
         with _conn() as conn:
             row = db.get_draft(conn, req.draft_id)
         if row is None:
             raise HTTPException(status_code=404, detail=f"草稿不存在：{req.draft_id}")
+        if row["owner_id"] and row["owner_id"] != owner:
+            # 不是自己的草稿：当成不存在，避免通过 id 探测别人
+            raise HTTPException(status_code=404, detail=f"草稿不存在：{req.draft_id}")
         draft = db.draft_row_to_dict(row)
         title, content, draft_id = draft["title"], draft["script"], draft["id"]
+        display_title = draft["title"]
         if draft.get("angle") == "paste":
             # 粘贴文案的"标题"就是正文第一行，再当标题传进去会把同一句话检查两遍
             title = ""
@@ -206,6 +228,7 @@ def _resolve_and_check(req: CheckRequest, llm: LLM):
         # 粘贴检查：自动建一条 draft，后续 /api/rewrite 才有 id 可用
         lines = [ln.strip() for ln in req.content.splitlines() if ln.strip()]
         draft_title = lines[0][:60] if lines else "粘贴的文案"
+        display_title = draft_title
         title = ""  # 检查/改写只用正文，避免"标题 = 第一行"重复
         draft_id = f"d_{uuid.uuid4().hex[:8]}"
         pid = f"p_{uuid.uuid4().hex[:8]}"
@@ -216,7 +239,7 @@ def _resolve_and_check(req: CheckRequest, llm: LLM):
                 {
                     "id": draft_id, "product_id": pid, "angle": "paste", "angle_name": "粘贴",
                     "title": draft_title, "hook": "", "script": req.content,
-                    "selling_points": [], "disclosure": "",
+                    "selling_points": [], "disclosure": "", "owner_id": owner,
                 },
             )
 
@@ -235,29 +258,41 @@ def _resolve_and_check(req: CheckRequest, llm: LLM):
                 db.save_check(conn, draft_id, "suspected", s.to_dict())
             conn.execute("UPDATE drafts SET status='checked' WHERE id=?", (draft_id,))
 
-    return draft_id, title, content, result
+    return draft_id, title, content, result, display_title
 
 
 @app.post("/api/check", response_model=CheckResponse)
-def check(req: CheckRequest, llm: LLM = Depends(get_llm)) -> CheckResponse:
+def check(
+    req: CheckRequest, llm: LLM = Depends(get_llm), owner: str = Depends(get_owner)
+) -> CheckResponse:
     started = time.time()
-    draft_id, title, content, result = _resolve_and_check(req, llm)
+    draft_id, title, content, result, display_title = _resolve_and_check(req, llm, owner)
 
     payload = result.to_dict()
     payload["draft_id"] = draft_id
     payload["violations"] = _numbered(result.violations)
-    payload["usage"] = log_usage("/api/check", result.usage, started, draft_id=draft_id or "-")
-    return CheckResponse(**payload)
+    payload["usage"] = log_usage("/api/check", result.usage, started, draft_id=draft_id or "-", owner=owner)
+    resp = CheckResponse(**payload)
+
+    with _conn() as conn:
+        db.add_event(
+            conn, owner, "check", draft_id, display_title,
+            violation_count=len(result.violations), remaining_count=len(result.violations),
+            payload=resp.model_dump(),
+        )
+    return resp
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
-def analyze(req: CheckRequest, llm: LLM = Depends(get_llm)) -> AnalyzeResponse:
+def analyze(
+    req: CheckRequest, llm: LLM = Depends(get_llm), owner: str = Depends(get_owner)
+) -> AnalyzeResponse:
     """检查 → 改写 → 复检，一次算完再返回（ADR-009）。
 
     前端只呈现这一份结果，所以「检查出的条数」和「改写明细的条数」必然一致。
     """
     started = time.time()
-    draft_id, title, content, result = _resolve_and_check(req, llm)
+    draft_id, title, content, result, display_title = _resolve_and_check(req, llm, owner)
     usage = dict(result.usage)
     rewrite_out: Optional[RewriteOut] = None
     rewrite_error: Optional[str] = None
@@ -288,8 +323,9 @@ def analyze(req: CheckRequest, llm: LLM = Depends(get_llm)) -> AnalyzeResponse:
         draft_id=draft_id or "-",
         violations=len(result.violations),
         rewritten=int(rewrite_out is not None),
+        owner=owner,
     )
-    return AnalyzeResponse(
+    resp = AnalyzeResponse(
         draft_id=draft_id,
         title=title,
         script=content,
@@ -302,6 +338,15 @@ def analyze(req: CheckRequest, llm: LLM = Depends(get_llm)) -> AnalyzeResponse:
         rewrite_error=rewrite_error,
         usage=usage,
     )
+
+    # 查过就算一条历史：payload 存完整快照，点开就能恢复那次的任务
+    with _conn() as conn:
+        db.add_event(
+            conn, owner, "check", draft_id, display_title,
+            violation_count=len(result.violations), remaining_count=resp.rewrite.remaining if resp.rewrite else 0,
+            payload=resp.model_dump(),
+        )
+    return resp
 
 
 
@@ -345,20 +390,42 @@ def rewrite(req: RewriteRequest, llm: LLM = Depends(get_llm)) -> RewriteResponse
 
 
 @app.post("/api/confirm", response_model=ConfirmResponse)
-def confirm(req: ConfirmRequest) -> ConfirmResponse:
+def confirm(req: ConfirmRequest, owner: str = Depends(get_owner)) -> ConfirmResponse:
     with _conn() as conn:
         row = db.get_draft(conn, req.draft_id)
-        if row is None:
+        if row is None or (row["owner_id"] and row["owner_id"] != owner):
             raise HTTPException(status_code=404, detail=f"草稿不存在：{req.draft_id}")
         saved = db.upsert_confirmation(conn, req.draft_id, req.final_content, req.reviewer)
+        db.mark_confirmed(conn, owner, req.draft_id)
     return ConfirmResponse(ok=True, **saved)
 
 
 @app.get("/api/history", response_model=HistoryResponse)
-def history(limit: int = Query(default=20, ge=1, le=100)) -> HistoryResponse:
+def history(
+    limit: int = Query(default=20, ge=1, le=100), owner: str = Depends(get_owner)
+) -> HistoryResponse:
+    """查过就算：不只是"已确认"的那些，按设备隔离。"""
     with _conn() as conn:
-        rows = db.list_history(conn, limit=limit)
+        rows = db.list_events(conn, owner, limit=limit)
     return HistoryResponse(items=[dict(r) for r in rows])
+
+
+@app.get("/api/events/{event_id}", response_model=EventDetailResponse)
+def event_detail(event_id: int, owner: str = Depends(get_owner)) -> EventDetailResponse:
+    """点开一条历史，把当次的分析快照还回去。别人的记录一律 404。"""
+    with _conn() as conn:
+        row = db.get_event(conn, event_id, owner)
+    if row is None:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    payload = json.loads(row["payload"]) if row["payload"] else {}
+    return EventDetailResponse(
+        id=row["id"],
+        created_at=row["created_at"],
+        status=row["status"],
+        draft_id=row["draft_id"],
+        title=row["title"],
+        result=payload,
+    )
 
 
 @app.get("/api/rules", response_model=RulesResponse)

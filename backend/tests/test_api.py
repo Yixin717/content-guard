@@ -247,3 +247,56 @@ def test_violations_sorted_by_position_in_text(client):
     assert [v["n"] for v in body["violations"]] == [1, 2]
     # 改动顺序也跟着原文顺序，编号一一对应
     assert [c["n"] for c in body["rewrite"]["changes"]] == [1, 2]
+
+
+# ---- 历史与匿名设备号（方案 C：事件表 + 按设备隔离）----
+
+
+def _hdr(owner):
+    return {"X-Owner-Id": owner}
+
+
+def test_history_is_per_device(client):
+    client.post("/api/analyze", json={"content": "全网最低价，69 两条"}, headers=_hdr("device-A"))
+    a = client.get("/api/history", headers=_hdr("device-A")).json()["items"]
+    b = client.get("/api/history", headers=_hdr("device-B")).json()["items"]
+    assert len(a) == 1
+    assert a[0]["violation_count"] == 1
+    assert a[0]["title"], "列表要有标题（或首句）"
+    assert b == [], "别人不能看到我的记录"
+
+
+def test_history_counts_every_check_not_only_confirmed(client):
+    for _ in range(2):
+        client.post("/api/analyze", json={"content": "全网最低价，69 两条"}, headers=_hdr("A"))
+    items = client.get("/api/history", headers=_hdr("A")).json()["items"]
+    assert len(items) == 2, "查过就算，同一条文案查两次就是两条"
+    assert all(it["status"] == "checked" for it in items)
+
+
+def test_event_detail_restores_snapshot_and_is_private(client):
+    client.post("/api/analyze", json={"content": "全网最低价，69 两条"}, headers=_hdr("A"))
+    ev = client.get("/api/history", headers=_hdr("A")).json()["items"][0]
+    ok = client.get(f"/api/events/{ev['id']}", headers=_hdr("A"))
+    assert ok.status_code == 200
+    result = ok.json()["result"]
+    assert result["script"] and result["rewrite"]["changes"] and result["violations"]
+    assert client.get(f"/api/events/{ev['id']}", headers=_hdr("B")).status_code == 404
+
+
+def test_confirm_is_owner_scoped_and_marks_history(client):
+    body = client.post("/api/analyze", json={"content": "全网最低价，69 两条"}, headers=_hdr("A")).json()
+    assert client.post(
+        "/api/confirm", json={"draft_id": body["draft_id"], "final_content": "定稿"}, headers=_hdr("B")
+    ).status_code == 404
+    assert client.post(
+        "/api/confirm", json={"draft_id": body["draft_id"], "final_content": "定稿"}, headers=_hdr("A")
+    ).status_code == 200
+    items = client.get("/api/history", headers=_hdr("A")).json()["items"]
+    assert items[0]["status"] == "confirmed"
+
+
+def test_cannot_check_other_devices_draft(client):
+    body = client.post("/api/analyze", json={"content": "全网最低价，69 两条"}, headers=_hdr("A")).json()
+    resp = client.post("/api/analyze", json={"draft_id": body["draft_id"]}, headers=_hdr("B"))
+    assert resp.status_code == 404

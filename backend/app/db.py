@@ -1,7 +1,7 @@
 """SQLite 数据层：建表、seed 规则、最小读写。
 
 设计取舍：
-- 不用 ORM：7 张表、字段固定，sqlite3 直写更透明，也便于面试时逐行解释；
+- 不用 ORM：6 张表、字段固定，sqlite3 直写更透明，也便于面试时逐行解释；
 - 规则以 CSV 为唯一来源，DB 里是**副本**（init_db 时重建），避免两处手工同步；
 - 确认表用 UNIQUE(draft_id) 实现幂等，而不是应用层先查后写（并发下会重复）。
 """
@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS drafts (
     selling_points TEXT,
     disclosure    TEXT,
     status        TEXT NOT NULL DEFAULT 'draft',   -- draft / checked / confirmed
+    owner_id      TEXT,                            -- 匿名设备号；老数据为 NULL
     created_at    TEXT NOT NULL,
     FOREIGN KEY (product_id) REFERENCES products(id)
 );
@@ -61,6 +62,20 @@ CREATE TABLE IF NOT EXISTS confirmations (
     created_at    TEXT NOT NULL
 );
 
+-- 事件流：每次"查过"就是一条记录（方案 C）。payload 里存当次分析快照，供点开恢复。
+CREATE TABLE IF NOT EXISTS events (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_id        TEXT NOT NULL,
+    kind            TEXT NOT NULL,                   -- check / confirm
+    draft_id        TEXT,
+    title           TEXT,
+    violation_count INTEGER NOT NULL DEFAULT 0,
+    remaining_count INTEGER NOT NULL DEFAULT 0,
+    status          TEXT NOT NULL DEFAULT 'checked', -- checked / confirmed
+    payload         TEXT,
+    created_at      TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS rules (
     id            TEXT PRIMARY KEY,
     category      TEXT NOT NULL,
@@ -80,6 +95,7 @@ CREATE TABLE IF NOT EXISTS rules (
 CREATE INDEX IF NOT EXISTS idx_drafts_product ON drafts(product_id);
 CREATE INDEX IF NOT EXISTS idx_checks_draft ON checks(draft_id);
 CREATE INDEX IF NOT EXISTS idx_rules_category ON rules(category);
+CREATE INDEX IF NOT EXISTS idx_events_owner ON events(owner_id, id DESC);
 """
 
 
@@ -105,9 +121,17 @@ def connect(db_path: Optional[Path] = None) -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
+    """老库补列：SQLite 没有 IF NOT EXISTS 的 ALTER，只能先查 PRAGMA。"""
+    cols = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+
+
 def init_db(db_path: Optional[Path] = None, seed: bool = True) -> int:
     with connect(db_path) as conn:
         conn.executescript(SCHEMA)
+        _ensure_column(conn, "drafts", "owner_id", "TEXT")
         if not seed:
             return 0
         rules = load_rules()
@@ -144,12 +168,12 @@ def insert_product(conn: sqlite3.Connection, product_id: str, brief: str, tone: 
 def insert_draft(conn: sqlite3.Connection, d: Dict[str, Any]) -> None:
     conn.execute(
         """INSERT INTO drafts (id, product_id, angle, angle_name, title, hook, script,
-                               selling_points, disclosure, status, created_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                               selling_points, disclosure, status, owner_id, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             d["id"], d["product_id"], d["angle"], d.get("angle_name", ""), d["title"],
             d.get("hook", ""), d["script"], json.dumps(d.get("selling_points", []), ensure_ascii=False),
-            d.get("disclosure", ""), d.get("status", "draft"), now(),
+            d.get("disclosure", ""), d.get("status", "draft"), d.get("owner_id"), now(),
         ),
     )
 
@@ -193,14 +217,55 @@ def list_rules(conn: sqlite3.Connection, category: Optional[str] = None) -> List
     return conn.execute("SELECT * FROM rules ORDER BY id").fetchall()
 
 
-def list_history(conn: sqlite3.Connection, limit: int = 20) -> List[sqlite3.Row]:
+def add_event(
+    conn: sqlite3.Connection,
+    owner_id: str,
+    kind: str,
+    draft_id: Optional[str],
+    title: Optional[str],
+    violation_count: int = 0,
+    remaining_count: int = 0,
+    status: str = "checked",
+    payload: Optional[Dict[str, Any]] = None,
+) -> int:
+    cur = conn.execute(
+        """INSERT INTO events (owner_id, kind, draft_id, title, violation_count, remaining_count,
+                               status, payload, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?)""",
+        (
+            owner_id, kind, draft_id, title, int(violation_count), int(remaining_count),
+            status, json.dumps(payload, ensure_ascii=False) if payload is not None else None, now(),
+        ),
+    )
+    return int(cur.lastrowid)
+
+
+def list_events(conn: sqlite3.Connection, owner_id: str, limit: int = 20) -> List[sqlite3.Row]:
+    """只返回某个设备的记录：没有账号，也不能互相看到。"""
     return conn.execute(
-        """SELECT c.id AS audit_id, c.draft_id, c.final_content, c.reviewer, c.created_at,
-                  d.angle_name, d.title
-           FROM confirmations c LEFT JOIN drafts d ON d.id = c.draft_id
-           ORDER BY c.id DESC LIMIT ?""",
-        (limit,),
+        """SELECT id, draft_id, title, violation_count, remaining_count, status, created_at
+           FROM events WHERE owner_id = ? AND kind = 'check'
+           ORDER BY id DESC LIMIT ?""",
+        (owner_id, limit),
     ).fetchall()
+
+
+def get_event(conn: sqlite3.Connection, event_id: int, owner_id: str) -> Optional[sqlite3.Row]:
+    return conn.execute(
+        "SELECT * FROM events WHERE id = ? AND owner_id = ?",
+        (event_id, owner_id),
+    ).fetchone()
+
+
+def mark_confirmed(conn: sqlite3.Connection, owner_id: str, draft_id: str) -> None:
+    """确认后把这次草稿最近的一条检查记录标为已确认。"""
+    conn.execute(
+        """UPDATE events SET status='confirmed'
+           WHERE id = (SELECT id FROM events
+                       WHERE owner_id=? AND draft_id=? AND kind='check'
+                       ORDER BY id DESC LIMIT 1)""",
+        (owner_id, draft_id),
+    )
 
 
 def draft_row_to_dict(row: sqlite3.Row) -> Dict[str, Any]:

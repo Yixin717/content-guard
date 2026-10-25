@@ -8,6 +8,7 @@ import {
   SAMPLE_CLEAN,
   RECENT,
 } from "./mock";
+import { ownerId } from "./owner";
 
 export const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "0";
 // 注意用 ??：部署到同一域名下时要传空字符串走相对路径（经 Nginx 反代）
@@ -19,9 +20,14 @@ const API_BASE =
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function request(path, { method = "GET", body } = {}) {
+  const headers = {};
+  if (body) headers["Content-Type"] = "application/json";
+  // 匿名设备号：后端据此隔离记录，没有登录也能"各看各的"
+  const owner = ownerId();
+  if (owner) headers["X-Owner-Id"] = owner;
   const res = await fetch(`${API_BASE}${path}`, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
@@ -165,24 +171,62 @@ export async function confirm(draftId, finalContent) {
 }
 
 /* ---------- 历史 ----------
-   mock 模式下也优先读真实接口：后端没启动就退回样例数据，避免页面空白 */
+   查过就算一条记录，按匿名设备号隔离（ADR-010）。
+   mock 模式下也优先读真实接口：后端没启动才退回样例，避免页面空白。 */
+function normalizeEvent(it) {
+  return {
+    id: it.id,
+    draftId: it.draft_id || null,
+    title: it.title || "",
+    count: it.violation_count ?? 0,
+    remaining: it.remaining_count ?? 0,
+    status: it.status || "checked",
+    createdAt: it.created_at || "",
+  };
+}
+
 export async function history() {
-  if (!USE_MOCK) return (await request("/api/history?limit=20")).items;
+  const fetchItems = async () => (await request("/api/history?limit=20")).items.map(normalizeEvent);
+  if (!USE_MOCK) return fetchItems();
   try {
-    return (await request("/api/history?limit=20")).items;
+    return await fetchItems();
   } catch {
     /* 后端未启动，用样例 */
   }
   await sleep(200);
   return RECENT.map((r, i) => ({
-    audit_id: i + 1,
-    draft_id: `d_mock_${i}`,
+    id: 1000 + i,
+    draftId: `d_mock_${i}`,
     title: r.title,
-    angle_name: r.n ? "促销型" : "粘贴",
-    final_content: r.title,
-    reviewer: "yixin",
-    created_at: r.date,
+    count: r.n,
+    remaining: 0,
+    status: "checked",
+    createdAt: r.date,
   }));
+}
+
+/* 点开一条历史：拿回当次的分析快照，直接恢复工作台 */
+export async function getEvent(id) {
+  if (!USE_MOCK) {
+    const data = await request(`/api/events/${id}`);
+    return { ...data, analyze: normalizeAnalyze(data.result || {}) };
+  }
+  await sleep(200);
+  const sample = SAMPLE_BAD;
+  return {
+    id,
+    title: sample.title,
+    status: "checked",
+    created_at: "",
+    analyze: normalizeAnalyze({
+      draft_id: "d_mock_bad",
+      script: sample.text,
+      violations: sample.violations,
+      rewrite: sample.rewrite
+        ? { ...sample.rewrite, before_violations: sample.violations.length, after_violations: 0 }
+        : null,
+    }),
+  };
 }
 
 /* ---------- 规则 ---------- */

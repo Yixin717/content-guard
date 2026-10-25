@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon";
 import StatusBar from "@/components/StatusBar";
 import TopBar from "@/components/TopBar";
-import { analyze, generate, history } from "@/lib/api";
+import { analyze, generate, getEvent, history } from "@/lib/api";
 import { RULE_COUNT } from "@/lib/mock";
 import { K, getJSON, setJSON } from "@/lib/store";
 
@@ -49,6 +49,23 @@ export default function EntryPage() {
       .then((items) => setRecent(items || []))
       .catch(() => setRecent([]));
   }, []);
+
+  // 点一条历史：拿回当次快照，直接恢复工作台
+  async function openEvent(id) {
+    setError("");
+    try {
+      const res = await getEvent(id);
+      const result = res.analyze || {};
+      if (!result.script) {
+        router.push("/history");
+        return;
+      }
+      setJSON(K.check, { text: result.script, result });
+      router.push("/workbench");
+    } catch (e) {
+      setError(e.message || "打开记录失败");
+    }
+  }
 
   // 一次算完：服务端内部 检查 → 改写 → 复检（ADR-009）
   async function runAnalyze(input) {
@@ -183,20 +200,21 @@ export default function EntryPage() {
               {error && <p className="error-text">{error}</p>}
 
               <div className="recent">
-                <h2>最近</h2>
+                <div className="recent-head">
+                  <h2>最近</h2>
+                  <button className="btn btn-text btn-sm" onClick={() => router.push("/history")}>
+                    查看全部 <Icon name="arrow" size={12} />
+                  </button>
+                </div>
                 {!recent && <p className="meta">加载中…</p>}
-                {recent && recent.length === 0 && <p className="meta">还没有记录</p>}
-                {(recent || []).map((r) => (
-                  <div
-                    className="recent-row"
-                    key={r.audit_id ?? r.draft_id}
-                    onClick={() => router.push("/history")}
-                  >
-                    <span className="t">{r.title || (r.final_content || "").slice(0, 24) || "（无标题）"}</span>
-                    <span className="n" style={{ color: "var(--ink-40)" }}>
-                      {r.angle_name || "已确认"}
+                {recent && recent.length === 0 && <p className="meta">还没有记录，查一条试试</p>}
+                {(recent || []).slice(0, 5).map((r) => (
+                  <div className="recent-row" key={r.id} onClick={() => openEvent(r.id)}>
+                    <span className="t">{r.title || "（无标题）"}</span>
+                    <span className={`n${r.count ? "" : " clean"}`}>
+                      {r.count ? `${r.count} 处问题` : "未发现问题"}
                     </span>
-                    <span className="d">{String(r.created_at || "").replace("T", " ").slice(5, 16)}</span>
+                    <span className="d">{String(r.createdAt || "").replace("T", " ").slice(5, 16)}</span>
                   </div>
                 ))}
               </div>

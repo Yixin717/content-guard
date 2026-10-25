@@ -148,17 +148,30 @@ class ConfirmResponse(BaseModel):
 
 
 class HistoryItem(BaseModel):
-    audit_id: int
-    draft_id: str
+    """一条"查过"的记录。只带列表需要的字段，正文不在列表里传。"""
+
+    id: int
+    draft_id: Optional[str] = None
     title: Optional[str] = None
-    angle_name: Optional[str] = None
-    final_content: str
-    reviewer: Optional[str] = None
+    violation_count: int = 0
+    remaining_count: int = 0
+    status: str = "checked"  # checked | confirmed
     created_at: str
 
 
 class HistoryResponse(BaseModel):
     items: List[HistoryItem]
+
+
+class EventDetailResponse(BaseModel):
+    """点开一条历史：把当次的分析快照原样还给前端，用于恢复工作台。"""
+
+    id: int
+    created_at: str
+    status: str
+    draft_id: Optional[str] = None
+    title: Optional[str] = None
+    result: dict
 
 
 class RuleOut(BaseModel):
