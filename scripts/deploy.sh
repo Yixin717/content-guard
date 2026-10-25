@@ -11,7 +11,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo "==> 1/6 本地构建前端（静态导出）"
 cd "$ROOT/frontend"
-npm run build
+# 线上必须用真实接口：USE_MOCK=0，API_BASE 为空 → 走同源 /api/（Nginx 反代）
+NEXT_PUBLIC_USE_MOCK=0 NEXT_PUBLIC_API_BASE= npm run build
 
 echo "==> 2/6 备份旧站点并准备目录"
 $REMOTE "STAMP=\$(date +%F-%H%M); sudo cp -a /etc/nginx/sites-available ~/nginx-backup-\$STAMP 2>/dev/null || true; sudo cp -a /var/www ~/var-www-backup-\$STAMP 2>/dev/null || true; echo \"已备份到 ~/nginx-backup-\$STAMP 与 ~/var-www-backup-\$STAMP\""

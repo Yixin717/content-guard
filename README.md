@@ -4,7 +4,7 @@
 
 **为什么做**：1–3 人的小商家团队没有专职合规，通常是「发布后被限流」才发现问题，且平台只说"涉嫌违规"，不说哪句话、违反哪条。这个项目把合规从"发布后检查"前移到"生成时就有护栏"。
 
-**当前状态**：D1–D5 主体完成 —— 规则库 40 条（逐字可溯源）+ CLI + FastAPI/SQLite + **Next.js 前端**（入口 / 选稿 / 工作台 / 历史 / 规则）。
+**线上 Demo**：**http://43.142.12.100/** ｜ **当前状态**：D1–D6 完成 —— 规则库 40 条（逐字可溯源）+ CLI + FastAPI/SQLite + **Next.js 前端**（入口 / 选稿 / 工作台 / 历史 / 规则）。
 
 **技术栈**：FastAPI + SQLite + Next.js + Nginx + systemd，部署于腾讯云 CVM；模型 DeepSeek `deepseek-chat`。
 
@@ -36,6 +36,14 @@ cd backend && .venv/bin/python -m app.db init
 # 7) 校验规则真实性 & 跑单测
 python3 scripts/verify_rules.py
 cd backend && .venv/bin/python -m pytest -q
+```
+
+### 部署
+
+线上：http://43.142.12.100/ （腾讯云 CVM + Nginx + systemd + 静态导出）。细节见 [部署记录](docs/deploy.md)。
+
+```bash
+HOST=43.142.12.100 bash scripts/deploy.sh   # 一键部署（含备份与健康检查）
 ```
 
 ### 前端

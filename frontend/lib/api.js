@@ -10,7 +10,11 @@ import {
 } from "./mock";
 
 export const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "0";
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:8000";
+// 注意用 ??：部署到同一域名下时要传空字符串走相对路径（经 Nginx 反代）
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE !== undefined
+    ? process.env.NEXT_PUBLIC_API_BASE
+    : "http://127.0.0.1:8000";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
