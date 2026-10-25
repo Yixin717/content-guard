@@ -165,7 +165,9 @@ function Entry({ onStart }) {
           {RECENT.map((r) => (
             <div className="recent-row" key={r.title} onClick={() => onStart(r.n ? "bad" : "clean")}>
               <span className="t">{r.title}</span>
-              <span className="n">{r.n ? `${r.n} 处问题` : "通过"}</span>
+              <span className="n" style={r.n ? undefined : { color: "var(--ink-40)" }}>
+                {r.n ? `${r.n} 处问题` : "通过"}
+              </span>
               <span className="d">{r.date}</span>
             </div>
           ))}
@@ -296,8 +298,8 @@ function DiagnosisColumn({ sample, activeN, onPick }) {
 
 /* ---------- 右栏：改写 ---------- */
 function RewriteColumn({ sample, stage, onRewrite }) {
-  const [progress, setProgress] = useState(stage === "rewritten");
-  useEffect(() => setProgress(stage === "rewritten"), [stage]);
+  const loading = stage === "rewriting";
+  const done = stage === "rewritten";
 
   if (!sample.violations.length) {
     return (
@@ -306,7 +308,16 @@ function RewriteColumn({ sample, stage, onRewrite }) {
           <h3>改写</h3>
         </div>
         <div className="panel-pad">
-          <p className="empty-hint">没有需要改写的地方。<br />如果你想换个说法，可以在左侧编辑原文后重新检查。</p>
+          <div className="summary">
+            <div className="big">可以发布</div>
+            <div className="hint">
+              文本层面未发现问题。发布前请自行确认商品资质、账号报备，若内容由 AI 辅助生成，记得标注「AI 生成」。
+            </div>
+            <div className="row">
+              <button className="btn btn-ghost btn-sm"><Icon name="copy" size={14} /> 复制正文</button>
+              <button className="btn btn-text btn-sm">再检查一次</button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -318,26 +329,25 @@ function RewriteColumn({ sample, stage, onRewrite }) {
     <div className="col">
       <div className="col-head">
         <h3>改写</h3>
-        <span className="count">{progress ? `下降 100% · ${rw.rounds} 轮` : "未开始"}</span>
+        <span className="count">{done ? `下降 100% · ${rw.rounds} 轮` : loading ? "改写中…" : "待改写"}</span>
       </div>
       <div className="panel-pad">
-        {!progress ? (
+        {loading ? (
           <div className="summary">
-            <div className="big">{sample.violations.length} 处待处理</div>
-            <div className="hint">
-              一键改写会保留价格、规格等事实信息，只改违规表达，改完自动复检。
-            </div>
-            <div className="row">
-              <button className="btn btn-primary" onClick={onRewrite}>
-                <Icon name="arrow" size={14} /> 一键全部改写
-              </button>
-              <button className="btn btn-text btn-sm">逐条改写</button>
+            <div className="big">正在改写 {sample.violations.length} 处…</div>
+            <div className="hint">保留价格、规格等事实信息，只改违规表达，改完自动复检。</div>
+            <div className="skeleton">
+              <span /><span /><span /><span />
             </div>
           </div>
         ) : (
           <>
             <div className="result-bar">
               <Icon name="check" size={14} /> 复检通过：{rw.changes.length} 处已修，剩余 0 处
+              <span style={{ flex: 1 }} />
+              <button className="btn btn-text btn-sm" style={{ color: "var(--blue)" }} onClick={onRewrite}>
+                重新改写
+              </button>
             </div>
             <div className="rewrite-text">
               <div className="title">
@@ -391,7 +401,9 @@ function RewriteColumn({ sample, stage, onRewrite }) {
 function Workbench({ initialSample, initialStage, onBack }) {
   const [sampleKey, setSampleKey] = useState(initialSample || "bad");
   const sample = sampleKey === "bad" ? SAMPLE_BAD : SAMPLE_CLEAN;
-  const [stage, setStage] = useState(initialStage || "checked");
+  const [stage, setStage] = useState(
+    initialStage || (sample.violations.length ? "rewritten" : "checked")
+  );
   const [activeN, setActiveN] = useState(1);
 
   const canConfirm = stage === "rewritten" || !sample.violations.length;
@@ -401,8 +413,19 @@ function Workbench({ initialSample, initialStage, onBack }) {
     setTimeout(() => setStage("rewritten"), 900);
   }
 
+  // 首次进入：先显示复查结果，再自动改写（不再让用户多点一次）
+  const [booting, setBooting] = useState(!initialStage && sample.violations.length > 0);
+  useEffect(() => {
+    if (!booting) return;
+    const t = setTimeout(() => {
+      setStage("rewriting");
+      setTimeout(() => { setStage("rewritten"); setBooting(false); }, 800);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [booting]);
+
   return (
-    <>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
       <TopBar
         stage={stage === "rewriting" ? "checked" : stage}
         canConfirm={canConfirm}
@@ -423,7 +446,29 @@ function Workbench({ initialSample, initialStage, onBack }) {
         <DiagnosisColumn sample={sample} activeN={activeN} onPick={setActiveN} />
         <RewriteColumn sample={sample} stage={stage} onRewrite={startRewrite} />
       </div>
-    </>
+      <StatusBar sample={sample} stage={stage} />
+    </div>
+  );
+}
+
+/* ---------- 底部状态条 ---------- */
+function StatusBar({ sample, stage }) {
+  return (
+    <div className="statusbar">
+      <span>规则库 {RULE_COUNT} 条</span>
+      <span className="dot">·</span>
+      <span>法条核验 20 / 平台官方 19 / 待补 1</span>
+      <span className="spacer" />
+      {stage === "rewritten" && sample.rewrite ? (
+        <>
+          <span className="mono">tokens 9,254 / 1,198</span>
+          <span className="dot">·</span>
+          <span>耗时 15.7s</span>
+          <span className="dot">·</span>
+        </>
+      ) : null}
+      <span>deepseek-chat</span>
+    </div>
   );
 }
 

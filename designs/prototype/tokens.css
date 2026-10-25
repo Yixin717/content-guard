@@ -4,10 +4,10 @@
 
 :root {
   /* 画布与表面 */
-  --paper: #f6f5f4;
-  --surface: #ffffff;
-  --line: rgba(0, 0, 0, 0.08);
-  --line-strong: rgba(0, 0, 0, 0.14);
+  --paper: #f3eee6;
+  --surface: #fdfbf7;
+  --line: rgba(60, 40, 20, 0.10);
+  --line-strong: rgba(60, 40, 20, 0.18);
 
   /* 墨色（靠透明度分层，不新增颜色） */
   --ink-100: rgba(0, 0, 0, 0.95);
@@ -235,8 +235,9 @@ button:disabled { cursor: not-allowed; }
 /* ---------- 工作台三栏 ---------- */
 .workbench {
   display: grid;
-  grid-template-columns: 500px 400px 1fr;
-  height: calc(100vh - 48px);
+  grid-template-columns: 380px 1fr 380px;
+  height: 100%;
+  min-height: 0;
   background: var(--surface);
 }
 
@@ -423,7 +424,7 @@ button:disabled { cursor: not-allowed; }
   font-size: 13px;
   line-height: 1.8;
   color: var(--ink-70);
-  background: var(--paper);
+  background: #f7f2ea;
   border-radius: 8px;
   padding: 10px 12px;
   margin: 8px 0 12px;
@@ -446,6 +447,7 @@ button:disabled { cursor: not-allowed; }
 
 /* 无违规覆盖卡 */
 .coverage {
+  max-width: 480px;
   margin: 4px 20px 40px;
   border: 1px solid var(--line);
   border-radius: var(--r-card);
@@ -593,3 +595,47 @@ button:disabled { cursor: not-allowed; }
   .workbench { grid-template-columns: 1fr; height: auto; }
   .col { border-right: 0; border-bottom: 1px solid var(--line); }
 }
+
+
+/* ---------- 改写中的骨架 ---------- */
+.skeleton {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton span {
+  display: block;
+  height: 12px;
+  border-radius: 4px;
+  background: #ece5da;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.skeleton span:nth-child(2) { width: 92%; }
+.skeleton span:nth-child(3) { width: 78%; }
+.skeleton span:nth-child(4) { width: 86%; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+
+/* ---------- 底部状态条 ---------- */
+.statusbar {
+  height: 28px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  font-size: 11px;
+  color: var(--ink-40);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+
+.statusbar .dot { color: var(--ink-20); }
+.statusbar .spacer { flex: 1; }
