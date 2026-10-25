@@ -829,6 +829,17 @@ button:disabled { cursor: not-allowed; }
 }
 
 .draft-foot .note { font-size: 11px; color: var(--ink-40); }
+
+.draft-foot .check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ink-40);
+}
+
+/* 勾用主蓝：系统里"通过/新增"都是蓝，不引入第四个语义色 */
+.draft-foot .check svg { color: var(--blue); }
 .draft-foot .spacer { flex: 1; }
 
 .draft-skeleton {

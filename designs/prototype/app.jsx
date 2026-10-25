@@ -456,7 +456,9 @@ function DraftPicker({ onPick, onRegenerate }) {
       <div className="drafts-head">
         <h2>{loading ? "正在生成 3 版…" : "3 版草稿"}</h2>
         <span className="hint">
-          {loading ? "按 40 条规则约束写作，约 10 秒" : "已按 40 条规则约束生成，选一版继续检查"}
+          {loading
+            ? "生成时会逐条对照 40 条规则，约 10 秒"
+            : "三版都已跑过 40 条规则自检，选一版继续确认"}
         </span>
         <div className="spacer" />
         {!loading && (
@@ -489,7 +491,10 @@ function DraftPicker({ onPick, onRegenerate }) {
                   ))}
                 </ul>
                 <div className="draft-foot">
-                  <span className="note">AI 辅助生成</span>
+                  <span className="check">
+                    <Icon name="check" size={13} />
+                    自检通过 · {d.selfCheck.rules} 条
+                  </span>
                   <div className="spacer" />
                   <button className="btn btn-ghost btn-sm" onClick={() => onPick(d)}>
                     用这版 <Icon name="arrow" size={13} />
