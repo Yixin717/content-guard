@@ -86,10 +86,10 @@ function highlightRanges(text, violations) {
 }
 
 /* ---------- 顶栏 ---------- */
-function TopBar({ stage, canConfirm, onBack }) {
+function TopBar({ stage, canConfirm, onBack, entryLabel = "粘贴" }) {
   const steps =
     stage === "entry"
-      ? ["粘贴"]
+      ? [entryLabel]
       : stage === "checked"
       ? ["原文", "检查", "改写"]
       : ["原文", "检查", "改写", "确认"];
@@ -128,10 +128,52 @@ function TopBar({ stage, canConfirm, onBack }) {
 
 /* ---------- 入口页 ---------- */
 function Entry({ onStart }) {
+  const [mode, setMode] = useState(
+    new URLSearchParams(location.search).get("mode") === "write" ? "write" : "check"
+  );
   const [text, setText] = useState(
     "姐妹们，这条裤子全网最低价！三天根治大腿根的痘印，国家级品质，加V领福利。我自己穿了三个月，洗完不皱，垂感一直在。69 两条，周末截止。"
   );
   const empty = text.trim().length === 0;
+
+  if (mode === "write") {
+    return (
+      <div className="entry-wrap">
+        <div className="entry">
+          <h1>先写一版</h1>
+          <p className="sub">填三样东西就行，生成 3 个角度的草稿，生成完直接进检查。</p>
+
+          <div className="brief-form">
+            <div className="field">
+              <label>卖什么、卖给谁</label>
+              <textarea defaultValue="杭州女装小店的冰丝阔腿裤，遮胯显瘦、垂感好，面向胯宽腿粗的女生，69 元两条。" />
+            </div>
+            <div className="field">
+              <label>价格与活动</label>
+              <input defaultValue="69 元两条，周末截止" />
+            </div>
+            <div className="field">
+              <label>语气</label>
+              <div className="chips">
+                <button className="chip on">像朋友聊天</button>
+                <button className="chip">专业克制</button>
+                <button className="chip">活泼种草</button>
+              </div>
+            </div>
+
+            <div className="form-foot">
+              <button className="btn btn-primary" onClick={() => onStart("bad")}>
+                生成 3 版 <Icon name="arrow" size={14} />
+              </button>
+              <button className="btn btn-text btn-sm" onClick={() => setMode("check")}>
+                回到检查
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="entry-wrap">
@@ -156,9 +198,12 @@ function Entry({ onStart }) {
           </div>
         </div>
 
-        <p className="alt-entry">
-          还没有文案？<a onClick={() => onStart("clean")}>让 AI 先写一版 →</a>
-        </p>
+        <div className="alt-entry">
+          <span>还没有文案？</span>
+          <button className="btn btn-ghost" onClick={() => setMode("write")}>
+            生成一版 <Icon name="arrow" size={14} />
+          </button>
+        </div>
 
         <div className="recent">
           <h2>最近</h2>
@@ -482,7 +527,7 @@ function App() {
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       {view === "entry" ? (
         <>
-          <TopBar stage="entry" canConfirm={false} />
+          <TopBar stage="entry" entryLabel={mode === "write" ? "生成" : "粘贴"} canConfirm={false} />
           <Entry onStart={() => setView("workbench")} />
         </>
       ) : (
