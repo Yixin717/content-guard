@@ -132,7 +132,7 @@ button:disabled { cursor: not-allowed; }
 
 /* ---------- 入口页 ---------- */
 .entry-wrap {
-  min-height: calc(100dvh - 48px);
+  flex: 1; /* 由主区高度决定，不再用 min-height 强行撑出 28px 的滚动条 */
   display: flex;
   justify-content: center;
   padding: 72px 24px 40px;
