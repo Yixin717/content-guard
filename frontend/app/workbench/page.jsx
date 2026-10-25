@@ -5,14 +5,13 @@ import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon";
 import StatusBar from "@/components/StatusBar";
 import TopBar from "@/components/TopBar";
-import { confirm as confirmApi, rewrite as rewriteApi } from "@/lib/api";
+import { confirm as confirmApi } from "@/lib/api";
 import { RULE_COUNT, SAMPLE_BAD, SAMPLE_CLEAN } from "@/lib/mock";
 import { K, getJSON } from "@/lib/store";
-import { sumUsage } from "@/lib/usage";
 
 const SEVERITY_LABEL = { high: "高危", medium: "中危", low: "低危" };
 
-/* 把 quote 切成可点的高亮片段 */
+/* 把文字按区间切成可高亮的片段：原文用违规区间，改写文用改动区间 */
 function segments(text, ranges) {
   const sorted = ranges.filter((r) => r.start >= 0).sort((a, b) => a.start - b.start);
   const out = [];
@@ -28,7 +27,7 @@ function segments(text, ranges) {
 }
 
 function buildSample() {
-  if (typeof window === "undefined") return SAMPLE_BAD;
+  if (typeof window === "undefined") return { ...SAMPLE_BAD, usage: null, rewriteError: null };
 
   const picked = getJSON(K.picked);
   if (picked) {
@@ -37,6 +36,7 @@ function buildSample() {
       text: picked.script || picked.text || "",
       violations: picked.violations || [],
       rewrite: picked.rewrite || null,
+      rewriteError: null,
       draftId: picked.id,
       // 生成入口：这一步的消耗来自 /api/generate（含自检与自动改写）
       usage: getJSON(K.genUsage),
@@ -47,64 +47,40 @@ function buildSample() {
   if (stored) {
     const r = stored.result || {};
     return {
-      title: "",
-      text: stored.text,
-      violations: (r.violations || []).map((v, i) => ({ ...v, n: i + 1 })),
+      title: r.title || "",
+      text: r.script || stored.text || "",
+      violations: r.violations || [],
+      // 检查与改写是同一次请求算出来的，不会再出现"检查 2 处、改动 3 处"
       rewrite: r.rewrite || null,
-      draftId: r.draft_id,
-      humanReview: r.human_review,
+      rewriteError: r.rewriteError || null,
+      draftId: r.draftId || r.draft_id,
+      humanReview: r.humanReview,
       reason: r.reason,
-      // 检查入口：这一步的消耗来自 /api/check
       usage: r.usage || null,
     };
   }
 
   const params = new URLSearchParams(window.location.search);
   const sample = params.get("sample") === "clean" ? SAMPLE_CLEAN : SAMPLE_BAD;
-  return { ...sample, usage: null };
+  return { ...sample, usage: null, rewriteError: null };
 }
 
 export default function WorkbenchPage() {
   const router = useRouter();
   const [sample, setSample] = useState(null);
-  const [stage, setStage] = useState("checked");
   const [activeN, setActiveN] = useState(1);
-  const [expanded, setExpanded] = useState(1);
   const [banner, setBanner] = useState("");
-  // 状态条显示的必须是真实消耗：入口那一步 + 这里的改写，没有就不显示
-  const [usage, setUsage] = useState(null);
 
   useEffect(() => {
-    const s = buildSample();
-    const base = s.usage || null;
-    setSample(s);
+    setSample(buildSample());
     setActiveN(1);
-    setExpanded(1);
-    if (s.violations && s.violations.length > 0 && !s.rewrite) {
-      setStage("rewriting");
-      rewriteApi(s.draftId)
-        .then((rw) => {
-          setSample((prev) => ({ ...prev, rewrite: rw }));
-          setUsage(sumUsage(base, rw?.usage));
-          setStage("rewritten");
-        })
-        .catch(() => {
-          setUsage(base);
-          setStage("checked");
-        });
-    } else if (s.rewrite) {
-      setUsage(sumUsage(base, s.rewrite.usage));
-      setStage("rewritten");
-    } else {
-      setUsage(base);
-    }
   }, []);
 
   const ranges = useMemo(
     () =>
       (sample?.violations || [])
         .map((v) => {
-          const start = sample.text.indexOf(v.quote);
+          const start = (sample.text || "").indexOf(v.quote);
           return { start, end: start + (v.quote || "").length, n: v.n, severity: v.severity };
         })
         .filter((r) => r.start >= 0),
@@ -126,13 +102,38 @@ export default function WorkbenchPage() {
   const violations = sample.violations || [];
   const rw = sample.rewrite;
   const rwText = rw?.text || "";
-  const rwChanges = rw?.changes || [];
-  const canConfirm = stage === "rewritten" || violations.length === 0;
+  // mock / 旧数据可能缺 status，这里补一次；有 after 就算改好了
+  const changes = (rw?.changes || []).map((c, i) => ({
+    ...c,
+    n: c.n ?? i + 1,
+    status: c.status || (c.after ? "fixed" : "unresolved"),
+  }));
+  const fixedChanges = changes.filter((c) => c.status === "fixed" && c.after);
+  const unresolved = changes.filter((c) => c.status !== "fixed" || !c.after);
+  const remaining = rw?.remaining ?? 0;
+  const stage = rw ? "rewritten" : "checked";
+  const canConfirm = !!rw || violations.length === 0;
+  const reduction = rw?.reduction;
+
+  // 后端直接给位置；mock 或缺失时按改写后的文本定位，保证一定标得出来
+  const changeRanges = changes
+    .map((c) => {
+      let { start, end } = c;
+      if ((start == null || start < 0) && c.after) {
+        const idx = rwText.indexOf(c.after);
+        if (idx >= 0) {
+          start = idx;
+          end = idx + c.after.length;
+        }
+      }
+      return { start, end, n: c.n };
+    })
+    .filter((r) => r.start >= 0 && r.end > r.start);
 
   return (
     <div className="app">
       <TopBar
-        stage={stage === "rewriting" ? "checked" : stage}
+        stage={stage}
         canConfirm={canConfirm}
         onConfirm={onConfirm}
         onBack={() => router.push("/")}
@@ -153,7 +154,7 @@ export default function WorkbenchPage() {
           <div className="col">
             <div className="col-head">
               <h3>原文</h3>
-              <span className="count">{sample.text.length} 字</span>
+              <span className="count">{(sample.text || "").length} 字</span>
               <div className="spacer" />
               <span className="count">
                 {violations.length ? `${violations.length} 处标记` : "无标记"}
@@ -162,15 +163,12 @@ export default function WorkbenchPage() {
             <div className="doc">
               {sample.title && <div className="title">{sample.title}</div>}
               <p>
-                {segments(sample.text, ranges).map((p, i) =>
+                {segments(sample.text || "", ranges).map((p, i) =>
                   p.n ? (
                     <span
                       key={i}
                       className={`hl hl-${p.severity}${p.n === activeN ? " active" : ""}`}
-                      onClick={() => {
-                        setActiveN(p.n);
-                        setExpanded(p.n);
-                      }}
+                      onClick={() => setActiveN(p.n)}
                     >
                       {p.text}
                       <span className={`num ${p.severity}`}>{p.n}</span>
@@ -183,7 +181,7 @@ export default function WorkbenchPage() {
             </div>
           </div>
 
-          {/* 中：诊断 */}
+          {/* 中：诊断（条款原文直接显示，不再藏在抽屉里） */}
           <div className="col">
             <div className="col-head">
               <h3>诊断</h3>
@@ -219,10 +217,7 @@ export default function WorkbenchPage() {
                   <div
                     key={v.n}
                     className={`card${v.n === activeN ? " active" : ""}`}
-                    onClick={() => {
-                      setActiveN(v.n);
-                      setExpanded(v.n);
-                    }}
+                    onClick={() => setActiveN(v.n)}
                   >
                     <div className="card-top">
                       <span className={`pill pill-${v.severity}`}>{SEVERITY_LABEL[v.severity]}</span>
@@ -232,35 +227,31 @@ export default function WorkbenchPage() {
                     </div>
                     <h4>{v.rule_title}</h4>
                     <p className="quote">“{v.quote}”</p>
-                    <div className="source">
-                      {v.source}
-                      <span style={{ color: "rgba(0,0,0,.2)" }}>·</span>
-                      <span style={{ color: "var(--blue)" }}>看条款</span>
-                    </div>
+                    <div className="source">{v.source}</div>
 
-                    {expanded === v.n && (
-                      <div className="expand">
-                        <div className="label">条款原文</div>
-                        <div className="clause">{v.clause}</div>
-                        <div className="label">建议改法</div>
-                        <div className="suggest">{v.suggestion}</div>
+                    <div className="expand">
+                      <div className="label">条款原文</div>
+                      <div className="clause">
+                        {v.clause || "（该条规则暂无可引用的原文，已标注为待补）"}
                       </div>
-                    )}
+                      <div className="label">建议改法</div>
+                      <div className="suggest">{v.suggestion || "按条款要求去掉该表述"}</div>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          {/* 右：改写 */}
+          {/* 右：改写（改动处蓝字 + 浅蓝底 + 下划线，编号与左栏一致） */}
           <div className="col">
             <div className="col-head">
               <h3>改写</h3>
               <span className="count">
-                {stage === "rewriting"
-                  ? "改写中…"
-                  : rw
-                  ? `下降 100% · ${rw.rounds || 1} 轮`
+                {rw
+                  ? `${reduction != null ? `下降 ${Math.round(reduction * 100)}%` : "已改写"} · ${
+                      rw.rounds || 1
+                    } 轮`
                   : "待改写"}
               </span>
             </div>
@@ -270,7 +261,7 @@ export default function WorkbenchPage() {
                 <div className="summary">
                   <div className="big">可以发布</div>
                   <div className="hint">
-                    文本层面未发现问题。发布前请自行确认商品资质、账号报备，若内容由 AI 辅助生成，记得标注「AI 生成」。
+                    文本层面未发现问题。发布前请自行确认商品资质、账号报备，本工具只检查文本。
                   </div>
                   <div className="row">
                     <button className="btn btn-ghost btn-sm">
@@ -278,33 +269,33 @@ export default function WorkbenchPage() {
                     </button>
                   </div>
                 </div>
-              ) : stage === "rewriting" ? (
+              ) : sample.rewriteError ? (
                 <div className="summary">
-                  <div className="big">正在改写 {violations.length} 处…</div>
-                  <div className="hint">保留价格、规格等事实信息，只改违规表达，改完自动复检。</div>
-                  <div className="skeleton">
-                    <span /><span /><span /><span />
+                  <div className="big">改写没成功</div>
+                  <div className="hint">{sample.rewriteError}</div>
+                  <div className="row">
+                    <button className="btn btn-ghost btn-sm" onClick={() => router.push("/")}>
+                      返回重试
+                    </button>
                   </div>
                 </div>
               ) : rw ? (
                 <>
-                  <div className="result-bar">
-                    <Icon name="check" size={14} /> 复检通过：{rwChanges.length} 处已修，剩余 0 处
+                  <div className={`result-bar${remaining ? " warn" : ""}`}>
+                    <Icon name={remaining ? "alert" : "check"} size={14} />
+                    {remaining
+                      ? `${fixedChanges.length} 处已修 · 复检仍有 ${remaining} 处，需人工确认`
+                      : `复检通过：${fixedChanges.length} 处已修，剩余 0 处`}
                   </div>
                   <div className="rewrite-text">
                     {rw.title && <div className="title">{rw.title}</div>}
                     <p>
-                      {segments(
-                        rwText,
-                        (rw.changes || [])
-                          .map((c) => {
-                            const start = rwText.indexOf(c.after);
-                            return { start, end: start + c.after.length, n: c.n, severity: "medium" };
-                          })
-                          .filter((r) => r.start >= 0)
-                      ).map((p, i) =>
+                      {segments(rwText, changeRanges).map((p, i) =>
                         p.n ? (
-                          <span key={i} className="add">{p.text}</span>
+                          <span key={i} className="add" onClick={() => setActiveN(p.n)}>
+                            {p.text}
+                            <sup className="add-n">{p.n}</sup>
+                          </span>
                         ) : (
                           <span key={i}>{p.text}</span>
                         )
@@ -313,20 +304,35 @@ export default function WorkbenchPage() {
                   </div>
 
                   <div className="changes">
-                    <div className="label" style={{ marginBottom: 8 }}>改动明细</div>
-                    {rwChanges.map((c) => (
-                      <div className="change" key={c.n}>
-                        <span className="idx">{c.n}</span>
-                        <div>
-                          <span className="del">{c.before}</span>
-                          <span className="arrow">→</span>
-                          <span className="ins">{c.after}</span>
-                          <div style={{ color: "var(--ink-40)", fontSize: 12, marginTop: 2 }}>
-                            {c.reason}
+                    <div className="label" style={{ marginBottom: 8 }}>
+                      改动明细（{changes.length} 处，与左侧标记一一对应）
+                    </div>
+                    {changes.map((c) => {
+                      const ok = c.status === "fixed" && c.after;
+                      return (
+                        <div className={`change${ok ? "" : " unresolved"}`} key={c.n}>
+                          <span className="idx">{c.n}</span>
+                          <div>
+                            <span className="del">{c.before}</span>
+                            <span className="arrow">→</span>
+                            {ok ? (
+                              <span className="ins">{c.after}</span>
+                            ) : (
+                              <span className="ins">未自动改好</span>
+                            )}
+                            <div className="change-why">
+                              {c.reason}
+                              {c.rule_id ? ` · ${c.rule_id}` : ""}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
+                    {unresolved.length > 0 && (
+                      <p className="note" style={{ marginTop: 10 }}>
+                        标「未自动改好」的条目需要人工处理——系统不会为了凑数编一条改动出来。
+                      </p>
+                    )}
                   </div>
                 </>
               ) : null}
@@ -335,7 +341,7 @@ export default function WorkbenchPage() {
         </div>
       </div>
 
-      <StatusBar usage={usage} />
+      <StatusBar usage={sample.usage} />
     </div>
   );
 }

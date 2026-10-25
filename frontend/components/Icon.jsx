@@ -1,5 +1,12 @@
 const PATHS = {
   check: <path d="M20 6 9 17l-5-5" />,
+  alert: (
+    <>
+      <path d="M12 3 2 21h20L12 3Z" />
+      <path d="M12 9v5" />
+      <path d="M12 18h.01" />
+    </>
+  ),
   back: <path d="m15 18-6-6 6-6" />,
   chevron: <path d="m9 18 6-6-6-6" />,
   arrow: (

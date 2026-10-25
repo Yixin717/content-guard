@@ -33,18 +33,46 @@ async function request(path, { method = "GET", body } = {}) {
   return data;
 }
 
-/* 把后端返回归一化：后端 rewrite 用 script，mock 用 text；
-   以前前端直接读 text，接上真接口就白屏。统一在这里抹平。 */
-function normalizeRewrite(rw) {
+/* 数据层归一化：UI 只消费这里吐出来的形状，不直接读后端字段（ADR-006）。 */
+
+/* 一处违规 = 一条改动（ADR-009）。后端给 start/end；mock 没有，就按 after 在文中定位。 */
+function normalizeChange(c, i, text) {
+  const after = c.after || "";
+  let start = typeof c.start === "number" ? c.start : -1;
+  let end = typeof c.end === "number" ? c.end : -1;
+  if (start < 0 && after && text) {
+    const idx = text.indexOf(after);
+    if (idx >= 0) {
+      start = idx;
+      end = idx + after.length;
+    }
+  }
+  return {
+    n: c.n ?? i + 1,
+    rule_id: c.rule_id || "",
+    rule_title: c.rule_title || "",
+    before: c.before || "",
+    after,
+    reason: c.reason || "",
+    status: c.status || (after ? "fixed" : "unresolved"),
+    start,
+    end,
+  };
+}
+
+function normalizeRewrite(rw, text) {
   if (!rw) return null;
+  const rewritten = rw.script ?? rw.text ?? "";
   return {
     title: rw.title || "",
-    text: rw.script ?? rw.text ?? "",
-    changes: rw.changes || [],
+    text: rewritten,
+    changes: (rw.changes || []).map((c, i) => normalizeChange(c, i, rewritten)),
     rounds: rw.rounds || 1,
-    before: rw.before_violations,
-    after: rw.after_violations,
-    // 后端真实消耗；mock 没有，就是 null，不许补一个假数字
+    before: rw.before_violations ?? null,
+    after: rw.after_violations ?? null,
+    remaining: rw.remaining ?? rw.after_violations ?? 0,
+    unresolved: rw.unresolved ?? 0,
+    reduction: rw.violation_reduction ?? null,
     usage: rw.usage || null,
   };
 }
@@ -52,12 +80,31 @@ function normalizeRewrite(rw) {
 function normalizeDraft(d, i) {
   return {
     ...d,
-    n: i + 1,
+    n: d.n ?? i + 1,
     script: d.script ?? d.text ?? "",
     rule_id: d.rule_id || "",
     rule_title: d.rule_title || "",
+    clause: d.clause || "",
+    source_url: d.source_url || "",
     severity: d.severity || "medium",
     confidence: d.confidence ?? 0,
+  };
+}
+
+function normalizeAnalyze(res) {
+  const script = res.script || "";
+  return {
+    draftId: res.draft_id || null,
+    title: res.title || "",
+    script,
+    violations: (res.violations || []).map(normalizeDraft),
+    uncertain: (res.uncertain || []).map(normalizeDraft),
+    suspected: res.suspected || [],
+    humanReview: !!res.human_review,
+    reason: res.reason || "",
+    rewrite: normalizeRewrite(res.rewrite, script),
+    rewriteError: res.rewrite_error || null,
+    usage: res.usage || null,
   };
 }
 
@@ -74,29 +121,35 @@ export async function generate(brief, tone) {
   return { drafts: DRAFTS, usage: null };
 }
 
-/* ---------- 检查 ---------- */
-export async function check(content) {
+/* ---------- 检查 + 改写（一次算完）----------
+   ADR-009：页面只发这一个请求，服务端内部检查→改写→复检，
+   这样"检查出几处"和"改动几处"必然一致。 */
+export async function analyze(content) {
   if (!USE_MOCK) {
-    const res = await request("/api/check", { method: "POST", body: { content } });
-    return {
-      ...res,
-      violations: (res.violations || []).map(normalizeDraft),
-      rewrite: null,
-      usage: res.usage || null,
-    };
+    return normalizeAnalyze(await request("/api/analyze", { method: "POST", body: { content } }));
   }
-  await sleep(600);
+  await sleep(900);
   const risky = /全网最低|国家级|根治|加V|最好的|第一/.test(content || "");
-  return risky ? { ...SAMPLE_BAD, draft_id: "d_mock_bad" } : { ...SAMPLE_CLEAN, draft_id: "d_mock_clean" };
-}
-
-/* ---------- 改写 ---------- */
-export async function rewrite(draftId) {
-  if (!USE_MOCK) {
-    return normalizeRewrite(await request("/api/rewrite", { method: "POST", body: { draft_id: draftId } }));
-  }
-  await sleep(700);
-  return SAMPLE_BAD.rewrite;
+  const sample = risky ? SAMPLE_BAD : SAMPLE_CLEAN;
+  return normalizeAnalyze({
+    draft_id: risky ? "d_mock_bad" : "d_mock_clean",
+    script: content,
+    violations: sample.violations || [],
+    uncertain: [],
+    suspected: [],
+    human_review: false,
+    reason: "",
+    rewrite: sample.rewrite
+      ? {
+          ...sample.rewrite,
+          before_violations: sample.violations?.length || 0,
+          after_violations: 0,
+          remaining: 0,
+          violation_reduction: 1,
+        }
+      : null,
+    usage: null,
+  });
 }
 
 /* ---------- 确认 ---------- */

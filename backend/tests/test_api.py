@@ -7,7 +7,7 @@ from app.api import app, get_llm
 from app.check import CheckPayload, ViolationPayload
 from app.config import settings
 from app.generate import DraftPayload
-from app.rewrite import RewritePayload
+from app.rewrite import ReplacementPayload, RewritePayload
 
 
 class FakeLLM:
@@ -33,14 +33,23 @@ class FakeLLM:
                 human_review=False,
             ), usage
         if schema is RewritePayload:
+            # 只回答「这一处换成什么」，不再重写整篇
             return RewritePayload(
-                title="胯宽姐妹看这条",
-                hook="坐下不卡裆",
-                script="我胯宽，穿这条坐下不卡裆，两条 69。",
-                selling_points=["遮胯"],
-                changes=[],
+                replacements=[ReplacementPayload(rule_id="ABS-004", before="69 两条", after="两条 69")],
             ), usage
         raise AssertionError(f"未预期的 schema: {schema}")
+
+
+class UnfixableLLM(FakeLLM):
+    """模型承认改不了（after 为空）——系统必须标「需人工」，不能编一条改动。"""
+
+    def chat_json(self, system, user, schema, max_retries=2):
+        if schema is RewritePayload:
+            usage = {"tokens_in": 10, "tokens_out": 20, "latency_ms": 5, "attempts": 1}
+            return RewritePayload(
+                replacements=[ReplacementPayload(rule_id="ABS-004", before="69 两条", after="")],
+            ), usage
+        return super().chat_json(system, user, schema, max_retries)
 
 
 @pytest.fixture()
@@ -160,3 +169,55 @@ def test_usage_is_logged_for_journalctl(client, caplog):
 
     lines = [r.getMessage() for r in caplog.records if r.name == "content_guard.usage"]
     assert any("llm_usage path=/api/check" in ln and "tokens_in=10" in ln for ln in lines), lines
+
+
+# ---- /api/analyze：检查与改动必须数量一致（ADR-009）----
+
+
+def test_check_returns_clause_text(client):
+    """中栏「条款原文」不能是空的：clause 必须来自 rules.csv 的原文。"""
+    body = client.post("/api/check", json={"content": "全网最低价，69 两条"}).json()
+    v = body["violations"][0]
+    assert v["n"] == 1
+    assert v["clause"], "条款原文不能为空"
+    from app.rules import load_rules
+
+    rule = {r.id: r for r in load_rules()}["ABS-004"]
+    assert v["clause"] == rule.quote
+    assert v["source_url"] == rule.source_url
+
+
+def test_analyze_change_count_equals_violation_count(client):
+    body = client.post("/api/analyze", json={"content": "全网最低价，69 两条"}).json()
+    violations = body["violations"]
+    changes = body["rewrite"]["changes"]
+    assert len(violations) == len(changes) == 1
+    # 编号共用：左栏 ① = 中栏 ① = 右栏 ①
+    assert [v["n"] for v in violations] == [c["n"] for c in changes]
+    assert changes[0]["rule_id"] == violations[0]["rule_id"]
+    assert changes[0]["status"] == "fixed"
+    assert changes[0]["after"] == "两条 69"
+    # 服务端给出高亮位置，前端不用 indexOf
+    start, end = changes[0]["start"], changes[0]["end"]
+    assert body["rewrite"]["script"][start:end] == "两条 69"
+    assert body["rewrite"]["remaining"] == 0
+
+
+def test_analyze_marks_unfixable_without_inventing_change(client):
+    app.dependency_overrides[get_llm] = lambda: UnfixableLLM()
+    body = client.post("/api/analyze", json={"content": "全网最低价，69 两条"}).json()
+    changes = body["rewrite"]["changes"]
+    assert len(changes) == len(body["violations"]) == 1
+    assert changes[0]["status"] == "unresolved"
+    assert changes[0]["after"] == ""
+    assert changes[0]["start"] == -1
+    assert "需人工" in changes[0]["reason"]
+    # 复检仍然命中 → remaining 必须如实为 1，而不是写死 0
+    assert body["rewrite"]["remaining"] == 1
+
+
+def test_analyze_usage_covers_check_rewrite_and_recheck(client):
+    body = client.post("/api/analyze", json={"content": "全网最低价，69 两条"}).json()
+    # 检查 1 次 + 改写 1 次 + 复检 1 次
+    assert body["usage"]["attempts"] == 3
+    assert body["usage"]["tokens_in"] == 30

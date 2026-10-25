@@ -58,6 +58,10 @@ class ViolationOut(BaseModel):
     severity: str
     suggestion: str
     confidence: float
+    # 条款原文与出处：中栏要能直接看到「违反的是哪句话」
+    clause: str = ""
+    source_url: str = ""
+    n: int = 0  # 全局编号，左/中/右三栏共用
 
 
 class CheckResponse(BaseModel):
@@ -90,12 +94,52 @@ class RewriteResponse(BaseModel):
     usage: dict = {}
 
 
+class ChangeOut(BaseModel):
+    """一处违规 = 一条改动。status=fixed 时 start/end 指向改写后全文中的位置。"""
+
+    n: int
+    rule_id: str
+    rule_title: str
+    before: str
+    after: str
+    reason: str
+    status: str  # fixed | unresolved
+    start: int = -1
+    end: int = -1
+
+
+class RewriteOut(BaseModel):
+    title: str
+    script: str
+    changes: List[ChangeOut]
+    rounds: int
+    remaining: int = 0
+    unresolved: int = 0
+    before_violations: int = 0
+    after_violations: int = 0
+    violation_reduction: Optional[float] = None
+
+
+class AnalyzeResponse(BaseModel):
+    """一次请求算完：检查 → 改写 → 复检。前端只呈现这一份结果。"""
+
+    draft_id: Optional[str] = None
+    title: str = ""
+    script: str = ""
+    violations: List[ViolationOut]
+    uncertain: List[ViolationOut]
+    suspected: List[dict]
+    human_review: bool
+    reason: str
+    rewrite: Optional[RewriteOut] = None
+    rewrite_error: Optional[str] = None
+    usage: dict = {}
+
+
 class ConfirmRequest(BaseModel):
     draft_id: str = Field(min_length=1)
     final_content: str = Field(min_length=1, max_length=5000)
     reviewer: str = Field(default="anonymous", max_length=50)
-
-
 class ConfirmResponse(BaseModel):
     ok: bool = True
     audit_id: int

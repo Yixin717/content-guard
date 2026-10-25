@@ -63,10 +63,9 @@ def _print_rewrite(rw: RewriteResult) -> None:
     if rw.changes:
         print("改动明细：")
         for c in rw.changes:
-            ids = "、".join(c.rule_ids) if c.rule_ids else "—"
-            print(f"  • [{ids}] {c.reason}")
-            print(f"      改前：{c.before}")
-            print(f"      改后：{c.after}")
+            mark = "" if c.status == "fixed" else "（需人工）"
+            print(f"  {c.n}. [{c.rule_id}] {c.before} → {c.after or '—'}{mark}")
+            print(f"      {c.reason}")
 
     print("\n改写后全文：")
     if rw.title:

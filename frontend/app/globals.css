@@ -4,8 +4,8 @@
 
 :root {
   /* 画布与表面 */
-  --paper: #f3eee6;
-  --surface: #fdfbf7;
+  --paper: #fffaf0;
+  --surface: #fffdf7;
   --line: rgba(60, 40, 20, 0.10);
   --line-strong: rgba(60, 40, 20, 0.18);
 
@@ -132,7 +132,7 @@ button:disabled { cursor: not-allowed; }
 
 /* ---------- 入口页 ---------- */
 .entry-wrap {
-  min-height: calc(100vh - 48px);
+  min-height: calc(100dvh - 48px);
   display: flex;
   justify-content: center;
   padding: 72px 24px 40px;
@@ -251,14 +251,14 @@ button:disabled { cursor: not-allowed; }
   grid-template-columns: 420px 1fr 420px;
   height: 100%;
   min-height: 0;
-  background: var(--surface);
+  background: var(--paper);
 }
 
 .col {
   min-width: 0;
   overflow-y: auto;
   border-right: 1px solid var(--line);
-  background: var(--surface);
+  background: var(--paper);
 }
 .col:last-child { border-right: 0; }
 
@@ -270,7 +270,7 @@ button:disabled { cursor: not-allowed; }
   align-items: baseline;
   gap: 8px;
   padding: 14px 20px 10px;
-  background: linear-gradient(var(--surface) 82%, rgba(255, 255, 255, 0));
+  background: linear-gradient(var(--paper) 82%, rgba(255, 250, 240, 0));
   border-bottom: 1px solid transparent;
 }
 
@@ -522,6 +522,11 @@ button:disabled { cursor: not-allowed; }
   align-items: center;
 }
 
+.result-bar.warn {
+  background: var(--medium-bg);
+  color: #8a5c00;
+}
+
 .result-bar {
   display: flex;
   align-items: center;
@@ -549,10 +554,19 @@ button:disabled { cursor: not-allowed; }
 }
 
 .add {
+  color: var(--add);
   background: var(--add-bg);
   border-bottom: 2px solid var(--add);
   border-radius: 2px;
   padding-bottom: 1px;
+  cursor: pointer;
+}
+.add-n {
+  margin-left: 1px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--add);
+  vertical-align: super;
 }
 
 .changes {
@@ -737,7 +751,7 @@ button:disabled { cursor: not-allowed; }
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: var(--surface);
+  background: var(--paper);
 }
 
 .drafts-head {
@@ -875,6 +889,7 @@ button:disabled { cursor: not-allowed; }
 /* ---------- Next.js 外壳 ---------- */
 .app {
   height: 100vh;
+  height: 100dvh; /* 手机浏览器工具栏会吃掉 100vh 的底部 */
   display: flex;
   flex-direction: column;
 }
@@ -884,6 +899,9 @@ button:disabled { cursor: not-allowed; }
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* 桌面端也要能滚：原来只有窄屏才给 overflow，长一点的"最近"直接看不到 */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 a { color: inherit; }
@@ -985,3 +1003,8 @@ a { color: inherit; }
   .table { font-size: 13px; }
   .table th, .table td { padding-left: 8px; padding-right: 8px; }
 }
+
+/* ---------- 改动明细里的状态 ---------- */
+.change-why { color: var(--ink-40); font-size: 12px; margin-top: 2px; }
+.change.unresolved .ins { color: var(--high); background: var(--del-bg); }
+.change.unresolved .idx { color: var(--high); }

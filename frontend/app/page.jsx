@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon";
 import StatusBar from "@/components/StatusBar";
 import TopBar from "@/components/TopBar";
-import { check, generate, history } from "@/lib/api";
+import { analyze, generate, history } from "@/lib/api";
 import { RULE_COUNT } from "@/lib/mock";
-import { K, setJSON } from "@/lib/store";
+import { K, getJSON, setJSON } from "@/lib/store";
 
 const SAMPLE_TEXT =
   "姐妹们，这条裤子全网最低价！三天根治大腿根的痘印，国家级品质，加V领福利。我自己穿了三个月，洗完不皱，垂感一直在。69 两条，周末截止。";
@@ -15,17 +15,32 @@ const SAMPLE_TEXT =
 export default function EntryPage() {
   const router = useRouter();
   const [mode, setMode] = useState("check");
-  const [text, setText] = useState(SAMPLE_TEXT);
+  // 默认空输入框，示例只做灰色占位；从工作台点「编辑原文」回来时回填上次粘贴的内容
+  const [text, setText] = useState("");
   const [brief, setBrief] = useState("杭州女装小店的冰丝阔腿裤，遮胯显瘦、垂感好，面向胯宽腿粗的女生，69 元两条。");
   const [price, setPrice] = useState("69 元两条，周末截止");
   const [tone, setTone] = useState("像朋友聊天");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [recent, setRecent] = useState(null);
+  const [elapsed, setElapsed] = useState(0);
+
+  // 真实等待计时：一次请求要跑完检查+改写+复检，不能只显示"检查中…"
+  useEffect(() => {
+    if (!busy) {
+      setElapsed(0);
+      return undefined;
+    }
+    const started = Date.now();
+    const timer = setInterval(() => setElapsed(Math.round((Date.now() - started) / 1000)), 500);
+    return () => clearInterval(timer);
+  }, [busy]);
 
   useEffect(() => {
     const m = new URLSearchParams(window.location.search).get("mode");
     if (m === "write") setMode("write");
+    const stored = getJSON(K.check);
+    if (stored?.text) setText(stored.text);
   }, []);
 
   // 「最近」读真实历史（后端没起时 api 层才退回样例，见 lib/api.js）
@@ -35,17 +50,34 @@ export default function EntryPage() {
       .catch(() => setRecent([]));
   }, []);
 
-  async function onCheck() {
+  // 一次算完：服务端内部 检查 → 改写 → 复检（ADR-009）
+  async function runAnalyze(input) {
+    const content = (input || "").trim();
     setError("");
-    setBusy("check");
+    setBusy("analyze");
     try {
-      const result = await check(text);
-      setJSON(K.check, { text, result });
+      const result = await analyze(content);
+      setJSON(K.check, { text: content, result });
       router.push("/workbench");
     } catch (e) {
       setError(e.message || "检查失败，请重试");
     } finally {
       setBusy("");
+    }
+  }
+
+  // 空着直接检查 = 用灰色示例跑一遍（演示用）
+  function onCheck() {
+    const content = text.trim() ? text : SAMPLE_TEXT;
+    if (!text.trim()) setText(SAMPLE_TEXT);
+    runAnalyze(content);
+  }
+
+  // 空输入框按回车不再换行，而是直接用示例开跑
+  function onComposerKeyDown(e) {
+    if (e.key === "Enter" && !e.shiftKey && !text.trim() && !busy) {
+      e.preventDefault();
+      onCheck();
     }
   }
 
@@ -64,7 +96,6 @@ export default function EntryPage() {
     }
   }
 
-  const empty = text.trim().length === 0;
 
   return (
     <div className="app">
@@ -125,15 +156,19 @@ export default function EntryPage() {
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  placeholder="粘贴你的标题 + 口播脚本（也可以只贴一段）"
+                  onKeyDown={onComposerKeyDown}
+                  placeholder={SAMPLE_TEXT}
+                  aria-label="粘贴要检查的文案"
                 />
                 <div className="composer-foot">
                   <span className="meta">已粘贴 {text.length} 字</span>
                   <span className="meta">·</span>
-                  <span className="meta">规则库 {RULE_COUNT} 条</span>
+                  <span className="meta">
+                    {text.trim() ? `规则库 ${RULE_COUNT} 条` : "没内容？回车用示例跑一遍"}
+                  </span>
                   <div className="spacer" />
-                  <button className="btn btn-primary" disabled={empty || !!busy} onClick={onCheck}>
-                    {busy === "check" ? "检查中…" : "开始检查"} <Icon name="arrow" size={14} />
+                  <button className="btn btn-primary" disabled={!!busy} onClick={onCheck}>
+                    {busy === "analyze" ? `检查中… ${elapsed}s` : "开始检查"} <Icon name="arrow" size={14} />
                   </button>
                 </div>
               </div>

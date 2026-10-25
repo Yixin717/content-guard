@@ -54,13 +54,18 @@ class Violation:
     severity: str
     suggestion: str
     confidence: float
+    # 条款原文与出处链接：中栏要显示「违反了哪一条的哪句话」，不能只有一个标题
+    clause: str = ""
+    source_url: str = ""
 
     def to_dict(self) -> Dict[str, object]:
         return {
             "rule_id": self.rule_id,
             "rule_title": self.rule_title,
             "source": self.source,
+            "source_url": self.source_url,
             "quote": self.quote,
+            "clause": self.clause,
             "severity": self.severity,
             "suggestion": self.suggestion,
             "confidence": round(self.confidence, 2),
@@ -143,6 +148,8 @@ def check_text(
             severity=(v.severity or rule.severity).strip(),
             suggestion=v.suggestion.strip(),
             confidence=float(v.confidence or 0.0),
+            clause=rule.quote,
+            source_url=rule.source_url,
         )
         if item.confidence < confidence_threshold:
             result.uncertain.append(item)

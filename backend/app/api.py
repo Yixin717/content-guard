@@ -26,6 +26,8 @@ from .llm import LLM, LLMError
 from .rewrite import rewrite_draft
 from .rules import load_rules
 from .schemas import (
+    AnalyzeResponse,
+    ChangeOut,
     CheckRequest,
     CheckResponse,
     ConfirmRequest,
@@ -33,6 +35,7 @@ from .schemas import (
     GenerateRequest,
     GenerateResponse,
     HistoryResponse,
+    RewriteOut,
     RewriteRequest,
     RewriteResponse,
     RuleOut,
@@ -180,9 +183,13 @@ def generate(req: GenerateRequest, llm: LLM = Depends(get_llm)) -> GenerateRespo
     )
 
 
-@app.post("/api/check", response_model=CheckResponse)
-def check(req: CheckRequest, llm: LLM = Depends(get_llm)) -> CheckResponse:
-    started = time.time()
+def _numbered(violations) -> list:
+    """给违规编号：左栏标记、中栏卡片、右栏改动共用同一个 n。"""
+    return [{**v.to_dict(), "n": i} for i, v in enumerate(violations, start=1)]
+
+
+def _resolve_and_check(req: CheckRequest, llm: LLM):
+    """解析目标（draft_id 或粘贴文本）→ 建/取草稿 → 检查 → 落库。"""
     title, content, draft_id = "", req.content or "", None
 
     if req.draft_id:
@@ -192,10 +199,14 @@ def check(req: CheckRequest, llm: LLM = Depends(get_llm)) -> CheckResponse:
             raise HTTPException(status_code=404, detail=f"草稿不存在：{req.draft_id}")
         draft = db.draft_row_to_dict(row)
         title, content, draft_id = draft["title"], draft["script"], draft["id"]
+        if draft.get("angle") == "paste":
+            # 粘贴文案的"标题"就是正文第一行，再当标题传进去会把同一句话检查两遍
+            title = ""
     else:
         # 粘贴检查：自动建一条 draft，后续 /api/rewrite 才有 id 可用
         lines = [ln.strip() for ln in req.content.splitlines() if ln.strip()]
-        title = lines[0][:60] if lines else "粘贴的文案"
+        draft_title = lines[0][:60] if lines else "粘贴的文案"
+        title = ""  # 检查/改写只用正文，避免"标题 = 第一行"重复
         draft_id = f"d_{uuid.uuid4().hex[:8]}"
         pid = f"p_{uuid.uuid4().hex[:8]}"
         with _conn() as conn:
@@ -204,7 +215,7 @@ def check(req: CheckRequest, llm: LLM = Depends(get_llm)) -> CheckResponse:
                 conn,
                 {
                     "id": draft_id, "product_id": pid, "angle": "paste", "angle_name": "粘贴",
-                    "title": title, "hook": "", "script": req.content,
+                    "title": draft_title, "hook": "", "script": req.content,
                     "selling_points": [], "disclosure": "",
                 },
             )
@@ -224,10 +235,74 @@ def check(req: CheckRequest, llm: LLM = Depends(get_llm)) -> CheckResponse:
                 db.save_check(conn, draft_id, "suspected", s.to_dict())
             conn.execute("UPDATE drafts SET status='checked' WHERE id=?", (draft_id,))
 
+    return draft_id, title, content, result
+
+
+@app.post("/api/check", response_model=CheckResponse)
+def check(req: CheckRequest, llm: LLM = Depends(get_llm)) -> CheckResponse:
+    started = time.time()
+    draft_id, title, content, result = _resolve_and_check(req, llm)
+
     payload = result.to_dict()
     payload["draft_id"] = draft_id
+    payload["violations"] = _numbered(result.violations)
     payload["usage"] = log_usage("/api/check", result.usage, started, draft_id=draft_id or "-")
     return CheckResponse(**payload)
+
+
+@app.post("/api/analyze", response_model=AnalyzeResponse)
+def analyze(req: CheckRequest, llm: LLM = Depends(get_llm)) -> AnalyzeResponse:
+    """检查 → 改写 → 复检，一次算完再返回（ADR-009）。
+
+    前端只呈现这一份结果，所以「检查出的条数」和「改写明细的条数」必然一致。
+    """
+    started = time.time()
+    draft_id, title, content, result = _resolve_and_check(req, llm)
+    usage = dict(result.usage)
+    rewrite_out: Optional[RewriteOut] = None
+    rewrite_error: Optional[str] = None
+
+    if result.violations:
+        try:
+            rw = rewrite_draft(title, "", content, result, llm=llm)
+            usage = merge_usage(result.usage, rw.usage)
+            rewrite_out = RewriteOut(
+                title=rw.title,
+                script=rw.script,
+                changes=[ChangeOut(**c.to_dict()) for c in rw.changes],
+                rounds=rw.rounds,
+                remaining=rw.remaining,
+                unresolved=rw.unresolved,
+                before_violations=len(result.violations),
+                after_violations=rw.remaining,
+                violation_reduction=rw.violation_reduction,
+            )
+        except LLMError as exc:
+            # 改写失败不能把检查结果一起丢掉：照常返回违规项，让前端提示重试
+            rewrite_error = f"改写失败，可重试：{exc}"
+
+    usage = log_usage(
+        "/api/analyze",
+        usage,
+        started,
+        draft_id=draft_id or "-",
+        violations=len(result.violations),
+        rewritten=int(rewrite_out is not None),
+    )
+    return AnalyzeResponse(
+        draft_id=draft_id,
+        title=title,
+        script=content,
+        violations=_numbered(result.violations),
+        uncertain=_numbered(result.uncertain),
+        suspected=[s.to_dict() for s in result.suspected],
+        human_review=result.human_review,
+        reason=result.reason,
+        rewrite=rewrite_out,
+        rewrite_error=rewrite_error,
+        usage=usage,
+    )
+
 
 
 @app.post("/api/rewrite", response_model=RewriteResponse)
@@ -260,7 +335,7 @@ def rewrite(req: RewriteRequest, llm: LLM = Depends(get_llm)) -> RewriteResponse
         draft_id=req.draft_id,
         title=result.title,
         script=result.script,
-        changes=[c.model_dump() for c in result.changes],
+        changes=[c.to_dict() for c in result.changes],
         before_violations=len(base_check.violations),
         after_violations=len(result.after_check.violations) if result.after_check else 0,
         violation_reduction=result.violation_reduction,
