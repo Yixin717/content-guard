@@ -74,11 +74,7 @@ function normalizeRewrite(rw, text) {
     text: rewritten,
     changes: (rw.changes || []).map((c, i) => normalizeChange(c, i, rewritten)),
     rounds: rw.rounds || 1,
-    before: rw.before_violations ?? null,
-    after: rw.after_violations ?? null,
-    remaining: rw.remaining ?? rw.after_violations ?? 0,
     unresolved: rw.unresolved ?? 0,
-    reduction: rw.violation_reduction ?? null,
     usage: rw.usage || null,
   };
 }

@@ -544,24 +544,6 @@ button:disabled { cursor: not-allowed; }
   align-items: center;
 }
 
-.result-bar.warn {
-  background: var(--medium-bg);
-  color: #8a5c00;
-}
-
-.result-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  background: var(--sky-tint);
-  border-radius: 8px;
-  color: var(--blue);
-  font-size: 12px;
-  font-weight: 500;
-  margin-bottom: 16px;
-}
-
 .rewrite-text {
   font-size: var(--doc-size);
   line-height: var(--doc-line);
@@ -1020,7 +1002,6 @@ a { color: inherit; }
   .alt-entry { justify-content: space-between; }
   .form-foot { flex-wrap: wrap; }
   .draft-foot { flex-wrap: wrap; row-gap: 8px; }
-  .result-bar { flex-wrap: wrap; }
   .statusbar .hide-sm { display: none; }
   .table { font-size: 13px; }
   .table th, .table td { padding-left: 8px; padding-right: 8px; }

@@ -109,15 +109,13 @@ class ChangeOut(BaseModel):
 
 
 class RewriteOut(BaseModel):
+    """一次 analyze 的改写结果：一条违规对应一条改动，不再带"复检残留"这种结论。"""
+
     title: str
     script: str
     changes: List[ChangeOut]
     rounds: int
-    remaining: int = 0
     unresolved: int = 0
-    before_violations: int = 0
-    after_violations: int = 0
-    violation_reduction: Optional[float] = None
 
 
 class AnalyzeResponse(BaseModel):

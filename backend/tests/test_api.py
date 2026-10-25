@@ -200,7 +200,6 @@ def test_analyze_change_count_equals_violation_count(client):
     # 服务端给出高亮位置，前端不用 indexOf
     start, end = changes[0]["start"], changes[0]["end"]
     assert body["rewrite"]["script"][start:end] == "两条 69"
-    assert body["rewrite"]["remaining"] == 0
 
 
 def test_analyze_marks_unfixable_without_inventing_change(client):
@@ -212,8 +211,9 @@ def test_analyze_marks_unfixable_without_inventing_change(client):
     assert changes[0]["after"] == ""
     assert changes[0]["start"] == -1
     assert "需人工" in changes[0]["reason"]
-    # 不再拿"改写后的复检"当结论：改写没改好就逐条标出来，其余不猜
-    assert body["rewrite"]["remaining"] == 0
+    # 不再拿"改写后的复检"当结论：改不了的逐条标出来，响应里没有悬空的 remaining
+    assert "remaining" not in body["rewrite"]
+    assert body["rewrite"]["unresolved"] == 1
 
 
 def test_analyze_usage_covers_both_checks_and_rewrite(client):

@@ -320,11 +320,7 @@ def analyze(
                 script=rw.script,
                 changes=[ChangeOut(**c.to_dict()) for c in rw.changes],
                 rounds=rw.rounds,
-                remaining=rw.remaining,
                 unresolved=rw.unresolved,
-                before_violations=len(result.violations),
-                after_violations=rw.remaining,
-                violation_reduction=rw.violation_reduction,
             )
         except LLMError as exc:
             # 改写失败不能把检查结果一起丢掉：照常返回违规项，让前端提示重试
@@ -357,7 +353,7 @@ def analyze(
     with _conn() as conn:
         db.add_event(
             conn, owner, "check", draft_id, display_title,
-            violation_count=len(result.violations), remaining_count=resp.rewrite.remaining if resp.rewrite else 0,
+            violation_count=len(result.violations), remaining_count=resp.rewrite.unresolved if resp.rewrite else 0,
             payload=resp.model_dump(),
         )
     return resp
