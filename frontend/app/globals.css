@@ -605,8 +605,19 @@ button:disabled { cursor: not-allowed; }
 
 /* 覆盖：窄屏堆叠 */
 @media (max-width: 1180px) {
-  .workbench { grid-template-columns: 1fr; height: auto; }
-  .col { border-right: 0; border-bottom: 1px solid var(--line); }
+  /* 堆叠后不要再让每栏各自滚动：整页滚动，内容才不会被截断 */
+  .workbench {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 0;
+    align-content: start;
+  }
+  .col {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    overflow-y: visible;
+  }
+  .main { overflow-y: auto; }
 }
 
 
@@ -923,3 +934,54 @@ a { color: inherit; }
   font-size: 13px; border-bottom: 1px solid var(--line);
 }
 .banner .btn { margin-left: auto; color: var(--blue); }
+
+/* ---------- 移动端：只保证"能看"，不做专门适配 ---------- */
+.app { overflow-x: hidden; }
+
+@media (max-width: 820px) {
+  .topbar {
+    padding: 0 10px;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .topbar::-webkit-scrollbar { display: none; }
+  .brand { font-size: 14px; white-space: nowrap; }
+  .topbar .steps { display: none; }
+  .topbar .btn-sm { padding: 6px 8px; white-space: nowrap; }
+
+  .entry-wrap { padding: 36px 16px 32px; }
+  .entry h1 { font-size: 24px; }
+  .entry .sub { font-size: 14px; }
+  .composer textarea { min-height: 140px; font-size: 15px; }
+
+  .col-head { padding: 12px 16px 8px; }
+  .doc { padding: 4px 16px 28px; }
+  .doc .title { font-size: 19px; }
+  .cards, .panel-pad, .coverage { padding-left: 16px; padding-right: 16px; margin-left: 0; margin-right: 0; }
+  .coverage { max-width: none; }
+
+  .drafts-head { padding: 14px 16px 12px; flex-wrap: wrap; gap: 6px; }
+  .draft-col { padding: 16px; }
+  .drafts-grid { grid-template-columns: 1fr; }
+  .draft-col { border-right: 0; border-bottom: 1px solid var(--line); }
+
+  .page { padding: 24px 16px 48px; }
+  .page-title { font-size: 22px; }
+  .search { min-width: 0; width: 100%; }
+
+  .statusbar { padding: 0 12px; gap: 6px; white-space: nowrap; overflow: hidden; }
+
+  /* 关键：横向排列的容器必须允许换行 / 收缩，否则会把整页撑宽 */
+  .main, .entry, .entry-wrap, .col, .workbench { min-width: 0; }
+  .composer-foot { flex-wrap: wrap; row-gap: 8px; }
+  .composer-foot .spacer { display: none; }
+  .composer-foot .btn { width: 100%; justify-content: center; }
+  .alt-entry { justify-content: space-between; }
+  .form-foot { flex-wrap: wrap; }
+  .draft-foot { flex-wrap: wrap; row-gap: 8px; }
+  .result-bar { flex-wrap: wrap; }
+  .statusbar .hide-sm { display: none; }
+  .table { font-size: 13px; }
+  .table th, .table td { padding-left: 8px; padding-right: 8px; }
+}

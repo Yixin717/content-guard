@@ -129,3 +129,24 @@ prompt 增加判定纪律与反例、规则增至 40 条。样本已存为 `data
 **已验证**：五个页面 200、`/health` 40 条、`/api/check` 2.0s 命中 3 条、`/api/confirm` 幂等、公网 8000 不可达。
 
 **未做**：HTTPS（需域名）、API 限流、SQLite 定时备份。
+
+---
+
+## 追加 · 2026-10-25（线上崩溃修复）
+
+**事故**：手机打开工作台，点了几下后白屏 → `Application error: a client-side exception`。
+
+**根因**：mock 里改写结果字段叫 `text`，真实接口叫 `script`。
+`rw.text` 为 undefined，`rw.text.indexOf(...)` 直接抛错，整棵树崩掉。
+
+**修法**
+1. `lib/api.js` 增加 `normalizeRewrite` / `normalizeDraft`：**在数据层把两种形状抹平**，UI 不再关心后端字段名。
+2. 工作台防御式渲染（`rw?.text || ""`）。
+3. 新增 `app/error.jsx`：以后出错显示中文提示 + 重试/回入口，**不再是黑屏英文**。
+
+**顺带修的移动端**：三栏堆叠后每栏仍是 `overflow-y:auto` 且被网格压成固定高度，内容被截断 →
+改为 `height:auto` + `overflow:visible` + 整页滚动。
+
+**一条排查记录**：用 390px 宽截图一直看到"右侧被裁"，以为是布局问题；
+实测 `innerWidth=500`（headless Chrome 有最小视口 500），390 截图是"500 渲染 + 390 裁剪"的假象。
+**结论：headless 截图不能用来判断窄屏溢出，要用 `innerWidth/scrollWidth` 实测。**

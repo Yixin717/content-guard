@@ -33,6 +33,32 @@ async function request(path, { method = "GET", body } = {}) {
   return data;
 }
 
+/* 把后端返回归一化：后端 rewrite 用 script，mock 用 text；
+   以前前端直接读 text，接上真接口就白屏。统一在这里抹平。 */
+function normalizeRewrite(rw) {
+  if (!rw) return null;
+  return {
+    title: rw.title || "",
+    text: rw.script ?? rw.text ?? "",
+    changes: rw.changes || [],
+    rounds: rw.rounds || 1,
+    before: rw.before_violations,
+    after: rw.after_violations,
+  };
+}
+
+function normalizeDraft(d, i) {
+  return {
+    ...d,
+    n: i + 1,
+    script: d.script ?? d.text ?? "",
+    rule_id: d.rule_id || "",
+    rule_title: d.rule_title || "",
+    severity: d.severity || "medium",
+    confidence: d.confidence ?? 0,
+  };
+}
+
 /* ---------- 生成 ---------- */
 export async function generate(brief, tone) {
   if (!USE_MOCK) {
@@ -48,7 +74,14 @@ export async function generate(brief, tone) {
 
 /* ---------- 检查 ---------- */
 export async function check(content) {
-  if (!USE_MOCK) return request("/api/check", { method: "POST", body: { content } });
+  if (!USE_MOCK) {
+    const res = await request("/api/check", { method: "POST", body: { content } });
+    return {
+      ...res,
+      violations: (res.violations || []).map(normalizeDraft),
+      rewrite: null,
+    };
+  }
   await sleep(600);
   const risky = /全网最低|国家级|根治|加V|最好的|第一/.test(content || "");
   return risky ? { ...SAMPLE_BAD, draft_id: "d_mock_bad" } : { ...SAMPLE_CLEAN, draft_id: "d_mock_clean" };
@@ -56,7 +89,9 @@ export async function check(content) {
 
 /* ---------- 改写 ---------- */
 export async function rewrite(draftId) {
-  if (!USE_MOCK) return request("/api/rewrite", { method: "POST", body: { draft_id: draftId } });
+  if (!USE_MOCK) {
+    return normalizeRewrite(await request("/api/rewrite", { method: "POST", body: { draft_id: draftId } }));
+  }
   await sleep(700);
   return SAMPLE_BAD.rewrite;
 }

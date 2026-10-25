@@ -109,6 +109,8 @@ export default function WorkbenchPage() {
 
   const violations = sample.violations || [];
   const rw = sample.rewrite;
+  const rwText = rw?.text || "";
+  const rwChanges = rw?.changes || [];
   const canConfirm = stage === "rewritten" || violations.length === 0;
 
   return (
@@ -271,16 +273,16 @@ export default function WorkbenchPage() {
               ) : rw ? (
                 <>
                   <div className="result-bar">
-                    <Icon name="check" size={14} /> 复检通过：{rw.changes?.length || 0} 处已修，剩余 0 处
+                    <Icon name="check" size={14} /> 复检通过：{rwChanges.length} 处已修，剩余 0 处
                   </div>
                   <div className="rewrite-text">
                     {rw.title && <div className="title">{rw.title}</div>}
                     <p>
                       {segments(
-                        rw.text,
+                        rwText,
                         (rw.changes || [])
                           .map((c) => {
-                            const start = rw.text.indexOf(c.after);
+                            const start = rwText.indexOf(c.after);
                             return { start, end: start + c.after.length, n: c.n, severity: "medium" };
                           })
                           .filter((r) => r.start >= 0)
@@ -296,7 +298,7 @@ export default function WorkbenchPage() {
 
                   <div className="changes">
                     <div className="label" style={{ marginBottom: 8 }}>改动明细</div>
-                    {(rw.changes || []).map((c) => (
+                    {rwChanges.map((c) => (
                       <div className="change" key={c.n}>
                         <span className="idx">{c.n}</span>
                         <div>
