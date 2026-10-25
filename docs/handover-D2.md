@@ -118,7 +118,7 @@
 
 | 坑 | 位置 | 说明 |
 |---|---|---|
-| `NEXT_PUBLIC_API_BASE` 必须用 `??` 不能用 `\|\|` | `frontend/lib/api.js:14` | 空字符串是 falsy，`\|\|` 会回退成 localhost，线上就变成"浏览器连自己电脑" |
+| `NEXT_PUBLIC_API_BASE` 必须用 `??` 不能用 `\|\|` | `frontend/lib/api.js:15` | 空字符串是 falsy，`\|\|` 会回退成 localhost，线上就变成"浏览器连自己电脑" |
 | mock 与后端字段名不一致 → 白屏 | `frontend/lib/api.js:38`（`normalizeRewrite`） | mock 用 `text`、后端用 `script`；**必须在数据层归一化，UI 不直接读后端字段** |
 | CORS 只放行 3000 端口 | `backend/app/api.py:58` | 静态预览用 4311/4321 会被拦，且**前端静默退回 mock，页面看不出异常** |
 | 部署必须关 mock | `scripts/deploy.sh`（构建行） | 首次部署忘了关，线上跑的是假数据 |
