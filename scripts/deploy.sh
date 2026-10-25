@@ -13,7 +13,8 @@ echo "==> 1/6 本地构建前端（静态导出）"
 cd "$ROOT/frontend"
 npm run build
 
-echo "==> 2/6 准备服务器目录"
+echo "==> 2/6 备份旧站点并准备目录"
+$REMOTE "STAMP=\$(date +%F-%H%M); sudo cp -a /etc/nginx/sites-available ~/nginx-backup-\$STAMP 2>/dev/null || true; sudo cp -a /var/www ~/var-www-backup-\$STAMP 2>/dev/null || true; echo \"已备份到 ~/nginx-backup-\$STAMP 与 ~/var-www-backup-\$STAMP\""
 $REMOTE "sudo mkdir -p /var/www/content-guard && sudo chown -R ${USER_NAME}:${USER_NAME} /var/www/content-guard && mkdir -p ~/content-guard"
 
 echo "==> 3/6 同步静态文件与后端代码"
