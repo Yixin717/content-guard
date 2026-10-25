@@ -201,6 +201,15 @@ prompt 增加判定纪律与反例、规则增至 40 条。样本已存为 `data
 - 真实 `/api/history` 的 `created_at` 是 ISO 格式（带 `T` 和时区），直接 `slice` 会显示出 `10-24T17:26`；要先把 `T` 换成空格再截。
 - 为了看效果我随手起了个 4321 静态预览，结果绑失败、把**原本就在跑的那个**当成自己的 —— 后来按文档里的命令重启恢复，并重新用默认（mock）配置构建了 `out/`。
 
-**明天第一件事**
-- 部署本次改动（`HOST=43.142.12.100 bash scripts/deploy.sh`），然后做线上对账：页面状态条数字 = `journalctl -u content-guard | grep llm_usage` 之和。
-- 之后才是 ② 限流 + HTTPS 前置、③ 评测集 12 条。
+**部署与线上对账（当天 16:11 完成）**
+- `HOST=43.142.12.100 bash scripts/deploy.sh` 上线，自动备份到 `~/nginx-backup-2026-10-25-1610`。
+- 线上 chunk 里 `9,254` 已消失（逐个 chunk grep 无结果）；`/health` 仍是 `rules: 40`。
+- 真实打了一组：`/api/check` → `usage 2442/89`（1247ms）、`/api/rewrite` → `5406/406`（4186ms，`attempts=3`），
+  `journalctl -u content-guard | grep llm_usage` 两条日志与响应**逐字一致**。
+- 把这两组真实 usage 喂给页面：状态条 `tokens 7,848 / 495`、`耗时 5.4s` = 两条日志之和 ✅
+- 本次对账花了约 4 分钱（1 次 check + 1 次 rewrite）。
+
+**下一步第一件事**
+- ③ 限流 + HTTPS 前置：Nginx `limit_req`（10 次/分钟），验收是第 11 次返回 429，并把命令与结果写进 `docs/deploy.md`。
+- 之后是 ④ 评测集 12 条 + 跑第一轮指标。
+

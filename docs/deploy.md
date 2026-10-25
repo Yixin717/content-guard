@@ -44,6 +44,7 @@ HOST=43.142.12.100 bash scripts/deploy.sh
 - `POST /api/confirm` 两次 → 第二次 `idempotent: true`，`audit_id` 相同
 - 公网 `:8000` → 不可访问（安全组已封）
 - 页面数据来自线上 API（规则页显示 40 条，非 mock 的 7 条）
+- 2026-10-25 重新部署（ADR-008）：`/api/check` → `2442/89`、`/api/rewrite` → `5406/406`，`journalctl -u content-guard | grep llm_usage` 两条日志与响应一致；页面状态条 `7,848 / 495`、`5.4s`
 
 ## 五、常用运维命令
 

@@ -9,7 +9,7 @@
 ## 0. 一眼看懂
 
 - **项目**：Content Guard —— 小红书带货文案的「发布前体检」。商家把要发的文案贴进来（或让 AI 写一版），系统按 40 条规则逐条检查、**每条违规指回具体条款**，自动给出合规改写，人工确认后导出。
-- **现在到哪**：**D0–D6 主体已完成并上线** → http://43.142.12.100/ （HTTP，无域名）。**B-008（状态条假数字 / 静态「最近」）已修但未部署**；D2 的规则扩容与访谈、D8 的评测**未做**。
+- **现在到哪**：**D0–D6 主体已完成并上线** → http://43.142.12.100/ （HTTP，无域名）。**B-008（状态条假数字 / 静态「最近」）已修并部署、线上对账通过**；D2 的规则扩容与访谈、D8 的评测**未做**。
 - **一句话结论**：产品内核是「检查与修订」，生成只是入口（ADR-001）；生成结果也必须内置自检（ADR-003）；**页面上的数字必须来自后端 `usage`，不许写死**（ADR-008）。**别把它当成"AI 文案生成器"来改。**
 
 
@@ -19,7 +19,7 @@
 
 | 项 | 数值 / 状态 | 核对方式 |
 |---|---|---|
-| Git 提交数 | **41** | `git rev-list --count HEAD` |
+| Git 提交数 | **42** | `git rev-list --count HEAD` |
 | 是否已推送 | **是**，`main...origin/main` 无差异 | `git status -sb` |
 | 工作区 | **干净**（无未提交改动） | `git status --short` |
 | 后端测试 | **18 passed** | `cd backend && .venv/bin/pytest -q` |
@@ -30,8 +30,9 @@
 | 数据库表 | 5 张（products/drafts/checks/confirmations/rules） | `backend/app/db.py` |
 | 前端页面 | 5 个 + 全局错误页 | `frontend/app/` |
 | 线上健康 | `{"status":"ok","model":"deepseek-chat","rules":40}` | `curl http://43.142.12.100/health` |
-| 线上版本 | **旧版**（本次假数字修复尚未部署） | 页面状态条仍是 `9,254` 即为旧版 |
-| 线上改写链路 | 实测 before 2 → after 0 | `POST /api/check` → `/api/rewrite` |
+| 线上版本 | **已部署 ADR-008**（状态条显示真实 `usage`） | 页面不再出现 `9,254`；`journalctl` 有 `llm_usage` |
+| 线上对账 | check 2442/89 + rewrite 5406/406 → 页面 `tokens 7,848 / 495`、`耗时 5.4s` | 2026-10-25 16:11 实测 |
+| 线上改写链路 | 实测 before 1 → after 0（1 轮） | `POST /api/check` → `/api/rewrite` |
 | 评测样本 | **1 条**（`data/eval_cases/001-zara-jacket.json`） | `ls data/eval_cases` |
 | CI | 3 个 job 全绿 | `31415ca`/`5a756e1`/`f8cc484` 的 run 均 success |
 
@@ -171,10 +172,14 @@
   - `/drafts` 生成入口 4321/777 12.3s → `tokens 4,321 / 777`、`耗时 12.3s` ✅
   - 线上对账**尚未做**，因为下面这一条还没做 ↓
 
-### ② 部署本次改动（线上现在还是"假数字版"）
-- `HOST=43.142.12.100 bash scripts/deploy.sh`
-- 本地那两个旧 uvicorn（8000/8010）也跑的是旧代码，要重启才有 `usage` 字段
-- **验收**：线上工作台状态条出现真实 tokens（不再有 `9,254`）；同时开一个窗口跑 `sudo journalctl -u content-guard -f | grep llm_usage`，页面数字应等于该任务 check + rewrite 两条日志之和。
+### ② ✅ 已完成：部署 + 线上对账（2026-10-25 16:11）
+- 执行 `HOST=43.142.12.100 bash scripts/deploy.sh`（自动备份到服务器 `~/nginx-backup-2026-10-25-1610` 与 `~/var-www-backup-2026-10-25-1610`）
+- **验收记录**：
+  - 线上 JS chunk 里 `9,254` **已消失**（逐个 chunk grep 无结果）
+  - `/api/check` → `usage 2442/89`（1247ms）；`/api/rewrite` → `5406/406`（4186ms、3 次调用）
+  - `sudo journalctl -u content-guard | grep llm_usage` 两条日志与响应数字**完全一致**
+  - 把这两组真实 usage 喂给页面 → 状态条显示 `tokens 7,848 / 495`、`耗时 5.4s`，**等于两条日志之和** ✅
+- 本地那两个旧 uvicorn（8000/8010）仍是旧代码，要用 `usage` 需重启
 
 ### ③ 限流 + HTTPS 前置
 - Nginx 加 `limit_req`（按 IP，如 10 次/分钟），超限返回 429
