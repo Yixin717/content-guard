@@ -22,6 +22,7 @@ class DraftOut(BaseModel):
     script: str
     selling_points: List[str]
     disclosure: str
+    self_check: Optional[dict] = None
 
 
 class GenerateResponse(BaseModel):

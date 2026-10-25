@@ -1,0 +1,162 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Icon from "@/components/Icon";
+import StatusBar from "@/components/StatusBar";
+import TopBar from "@/components/TopBar";
+import { check, generate } from "@/lib/api";
+import { RECENT, RULE_COUNT } from "@/lib/mock";
+import { K, setJSON } from "@/lib/store";
+
+const SAMPLE_TEXT =
+  "姐妹们，这条裤子全网最低价！三天根治大腿根的痘印，国家级品质，加V领福利。我自己穿了三个月，洗完不皱，垂感一直在。69 两条，周末截止。";
+
+export default function EntryPage() {
+  const router = useRouter();
+  const [mode, setMode] = useState("check");
+  const [text, setText] = useState(SAMPLE_TEXT);
+  const [brief, setBrief] = useState("杭州女装小店的冰丝阔腿裤，遮胯显瘦、垂感好，面向胯宽腿粗的女生，69 元两条。");
+  const [price, setPrice] = useState("69 元两条，周末截止");
+  const [tone, setTone] = useState("像朋友聊天");
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const m = new URLSearchParams(window.location.search).get("mode");
+    if (m === "write") setMode("write");
+  }, []);
+
+  async function onCheck() {
+    setError("");
+    setBusy("check");
+    try {
+      const result = await check(text);
+      setJSON(K.check, { text, result });
+      router.push("/workbench");
+    } catch (e) {
+      setError(e.message || "检查失败，请重试");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function onGenerate() {
+    setError("");
+    setBusy("generate");
+    try {
+      const drafts = await generate(`${brief}\n价格与活动：${price}\n语气：${tone}`);
+      setJSON(K.drafts, drafts);
+      router.push("/drafts");
+    } catch (e) {
+      setError(e.message || "生成失败，请重试");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  const empty = text.trim().length === 0;
+
+  return (
+    <div className="app">
+      <TopBar stage="entry" entryLabel={mode === "write" ? "生成" : "粘贴"} canConfirm={false} />
+
+      <div className="main">
+        {mode === "write" ? (
+          <div className="entry-wrap">
+            <div className="entry">
+              <h1>先写一版</h1>
+              <p className="sub">填三样东西就行，生成 3 个角度的草稿，出稿前会先过一遍 40 条规则。</p>
+
+              <div className="brief-form">
+                <div className="field">
+                  <label>卖什么、卖给谁</label>
+                  <textarea value={brief} onChange={(e) => setBrief(e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>价格与活动</label>
+                  <input value={price} onChange={(e) => setPrice(e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>语气</label>
+                  <div className="chips">
+                    {["像朋友聊天", "专业克制", "活泼种草"].map((t) => (
+                      <button
+                        key={t}
+                        className={`chip${tone === t ? " on" : ""}`}
+                        onClick={() => setTone(t)}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="form-foot">
+                  <button className="btn btn-primary" onClick={onGenerate} disabled={busy === "generate"}>
+                    {busy === "generate" ? "生成中…" : "生成 3 版"} <Icon name="arrow" size={14} />
+                  </button>
+                  <button className="btn btn-text btn-sm" onClick={() => setMode("check")} disabled={!!busy}>
+                    回到检查
+                  </button>
+                </div>
+                {error && <p className="error-text">{error}</p>}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="entry-wrap">
+            <div className="entry">
+              <h1>发布前，先过一遍</h1>
+              <p className="sub">
+                把要发的小红书文案贴进来，我告诉你哪一句会出事、违反哪一条，并给出改好的版本。
+              </p>
+
+              <div className="composer">
+                <textarea
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder="粘贴你的标题 + 口播脚本（也可以只贴一段）"
+                />
+                <div className="composer-foot">
+                  <span className="meta">已粘贴 {text.length} 字</span>
+                  <span className="meta">·</span>
+                  <span className="meta">规则库 {RULE_COUNT} 条</span>
+                  <div className="spacer" />
+                  <button className="btn btn-primary" disabled={empty || !!busy} onClick={onCheck}>
+                    {busy === "check" ? "检查中…" : "开始检查"} <Icon name="arrow" size={14} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="alt-entry">
+                <span>还没有文案？</span>
+                <button className="btn btn-ghost" onClick={() => setMode("write")} disabled={!!busy}>
+                  生成一版 <Icon name="arrow" size={14} />
+                </button>
+              </div>
+
+              {error && <p className="error-text">{error}</p>}
+
+              <div className="recent">
+                <h2>最近</h2>
+                {RECENT.length === 0 && <p className="meta">还没有记录</p>}
+                {RECENT.map((r) => (
+                  <div className="recent-row" key={r.title} onClick={() => router.push("/history")}>
+                    <span className="t">{r.title}</span>
+                    <span className="n" style={r.n ? undefined : { color: "var(--ink-40)" }}>
+                      {r.n ? `${r.n} 处问题` : "通过"}
+                    </span>
+                    <span className="d">{r.date}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <StatusBar />
+    </div>
+  );
+}

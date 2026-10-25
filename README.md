@@ -4,7 +4,7 @@
 
 **为什么做**：1–3 人的小商家团队没有专职合规，通常是「发布后被限流」才发现问题，且平台只说"涉嫌违规"，不说哪句话、违反哪条。这个项目把合规从"发布后检查"前移到"生成时就有护栏"。
 
-**当前状态**：D1 完成、D3 改写与 D4 的 API 均已提前完成 —— 规则库 40 条 + CLI 全链路 + FastAPI/SQLite（含幂等确认与审计）。
+**当前状态**：D1–D5 主体完成 —— 规则库 40 条（逐字可溯源）+ CLI + FastAPI/SQLite + **Next.js 前端**（入口 / 选稿 / 工作台 / 历史 / 规则）。
 
 **技术栈**：FastAPI + SQLite + Next.js + Nginx + systemd，部署于腾讯云 CVM；模型 DeepSeek `deepseek-chat`。
 
@@ -26,13 +26,29 @@ cd backend && /usr/bin/python3 -m venv .venv && .venv/bin/pip install -r require
 # 4) 只检查一段现成文案（回归/演示用）
 .venv/bin/python -m app.cli --check "全网最低价，三天根治痘痘，加V领福利"
 
-# 5) 起 API（Swagger: http://127.0.0.1:8000/docs）
+# 5) 起前端（默认跑 mock 数据；接真接口见下）
+cd frontend && npm install --cache ./.npm-cache && npm run dev     # http://localhost:3000
+
+# 6) 起 API（Swagger: http://127.0.0.1:8000/docs）
 cd backend && .venv/bin/python -m app.db init
 .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 
-# 6) 校验规则真实性 & 跑单测
+# 7) 校验规则真实性 & 跑单测
 python3 scripts/verify_rules.py
 cd backend && .venv/bin/python -m pytest -q
+```
+
+### 前端
+
+- 技术栈：Next.js 14（App Router，静态导出 `output: export`）+ 纯 CSS 令牌（沿用 `designs/prototype` 的设计稿）。
+- 默认 `NEXT_PUBLIC_USE_MOCK=1`：生成/检查/改写走内置样例，接口不通也能看界面。
+- 接真接口：`NEXT_PUBLIC_USE_MOCK=0 NEXT_PUBLIC_API_BASE=http://127.0.0.1:8000 npm run dev`。
+- 规则页与历史页**优先读真接口**，后端没起才退回样例。
+
+```bash
+cd frontend
+npm run dev      # 开发
+npm run build    # 静态导出到 out/，D6 交给 Nginx
 ```
 
 ### API

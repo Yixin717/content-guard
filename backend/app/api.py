@@ -54,7 +54,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Content Guard API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    # 本地开发/静态预览的端口不固定（3000 next dev、4311/4321 静态预览），用正则统一放行
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -73,10 +74,32 @@ def health() -> dict:
 def generate(req: GenerateRequest, llm: LLM = Depends(get_llm)) -> GenerateResponse:
     started = time.time()
     product_id = f"p_{uuid.uuid4().hex[:10]}"
+    rules = load_rules()
+
     try:
         drafts = generate_drafts(req.brief, tone=req.tone, platform=req.platform, llm=llm)
     except LLMError as exc:
         raise HTTPException(status_code=504, detail=f"模型调用失败，请重试或转人工：{exc}") from exc
+
+    # ADR-003：生成即自检，命中就自动改写，通过才作为成品返回
+    for d in drafts:
+        try:
+            first = check_text(d.title, d.script, rules=rules, llm=llm)
+            fixed = len(first.violations)
+            remaining = fixed
+            if fixed:
+                rw = rewrite_draft(d.title, d.hook, d.script, first, rules=rules, llm=llm)
+                d.title, d.script = rw.title, rw.script
+                remaining = len(rw.after_check.violations) if rw.after_check else fixed
+            d.self_check = {
+                "rules": len(rules),
+                "fixed": fixed,
+                "remaining": remaining,
+                "passed": remaining == 0,
+                "rounds": getattr(rw, "rounds", 0) if fixed else 0,
+            }
+        except LLMError as exc:  # 自检失败不能让整个生成挂掉
+            d.self_check = {"rules": len(rules), "fixed": 0, "remaining": None, "passed": False, "error": str(exc)}
 
     with _conn() as conn:
         db.insert_product(conn, product_id, req.brief, req.tone)
@@ -92,7 +115,15 @@ def generate(req: GenerateRequest, llm: LLM = Depends(get_llm)) -> GenerateRespo
 
     return GenerateResponse(
         product_id=product_id,
-        drafts=[d.__dict__ for d in drafts],
+        drafts=[
+            {
+                "id": d.id, "angle": d.angle, "angle_name": d.angle_name,
+                "title": d.title, "hook": d.hook, "script": d.script,
+                "selling_points": d.selling_points, "disclosure": d.disclosure,
+                "self_check": d.self_check,
+            }
+            for d in drafts
+        ],
         elapsed_ms=int((time.time() - started) * 1000),
         tokens_in=sum(d.usage.get("tokens_in", 0) for d in drafts),
         tokens_out=sum(d.usage.get("tokens_out", 0) for d in drafts),
@@ -110,6 +141,22 @@ def check(req: CheckRequest, llm: LLM = Depends(get_llm)) -> CheckResponse:
             raise HTTPException(status_code=404, detail=f"草稿不存在：{req.draft_id}")
         draft = db.draft_row_to_dict(row)
         title, content, draft_id = draft["title"], draft["script"], draft["id"]
+    else:
+        # 粘贴检查：自动建一条 draft，后续 /api/rewrite 才有 id 可用
+        lines = [ln.strip() for ln in req.content.splitlines() if ln.strip()]
+        title = lines[0][:60] if lines else "粘贴的文案"
+        draft_id = f"d_{uuid.uuid4().hex[:8]}"
+        pid = f"p_{uuid.uuid4().hex[:8]}"
+        with _conn() as conn:
+            db.insert_product(conn, pid, "（粘贴检查）", "")
+            db.insert_draft(
+                conn,
+                {
+                    "id": draft_id, "product_id": pid, "angle": "paste", "angle_name": "粘贴",
+                    "title": title, "hook": "", "script": req.content,
+                    "selling_points": [], "disclosure": "",
+                },
+            )
 
     try:
         result = check_text(title, content, llm=llm)

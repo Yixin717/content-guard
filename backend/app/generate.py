@@ -31,6 +31,7 @@ class Draft:
     selling_points: List[str]
     disclosure: str
     usage: Dict[str, int] = field(default_factory=dict)
+    self_check: Optional[dict] = None
 
     def text(self) -> str:
         return f"{self.title}\n{self.hook}\n{self.script}"
