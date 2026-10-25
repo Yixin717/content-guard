@@ -141,6 +141,9 @@ def rewrite_draft(
         if not verify:
             break
         current_check = check_text(cur_title, cur_script, rules=rules, llm=llm)
+        # 复检本身也花钱，必须计入 usage，否则对外报的 token 数会少算
+        for k in usage_total:
+            usage_total[k] += current_check.usage.get(k, 0)
 
     return RewriteResult(
         title=cur_title,

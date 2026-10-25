@@ -8,6 +8,7 @@ import TopBar from "@/components/TopBar";
 import { confirm as confirmApi, rewrite as rewriteApi } from "@/lib/api";
 import { RULE_COUNT, SAMPLE_BAD, SAMPLE_CLEAN } from "@/lib/mock";
 import { K, getJSON } from "@/lib/store";
+import { sumUsage } from "@/lib/usage";
 
 const SEVERITY_LABEL = { high: "高危", medium: "中危", low: "低危" };
 
@@ -37,6 +38,8 @@ function buildSample() {
       violations: picked.violations || [],
       rewrite: picked.rewrite || null,
       draftId: picked.id,
+      // 生成入口：这一步的消耗来自 /api/generate（含自检与自动改写）
+      usage: getJSON(K.genUsage),
     };
   }
 
@@ -51,11 +54,14 @@ function buildSample() {
       draftId: r.draft_id,
       humanReview: r.human_review,
       reason: r.reason,
+      // 检查入口：这一步的消耗来自 /api/check
+      usage: r.usage || null,
     };
   }
 
   const params = new URLSearchParams(window.location.search);
-  return params.get("sample") === "clean" ? SAMPLE_CLEAN : SAMPLE_BAD;
+  const sample = params.get("sample") === "clean" ? SAMPLE_CLEAN : SAMPLE_BAD;
+  return { ...sample, usage: null };
 }
 
 export default function WorkbenchPage() {
@@ -65,9 +71,12 @@ export default function WorkbenchPage() {
   const [activeN, setActiveN] = useState(1);
   const [expanded, setExpanded] = useState(1);
   const [banner, setBanner] = useState("");
+  // 状态条显示的必须是真实消耗：入口那一步 + 这里的改写，没有就不显示
+  const [usage, setUsage] = useState(null);
 
   useEffect(() => {
     const s = buildSample();
+    const base = s.usage || null;
     setSample(s);
     setActiveN(1);
     setExpanded(1);
@@ -76,11 +85,18 @@ export default function WorkbenchPage() {
       rewriteApi(s.draftId)
         .then((rw) => {
           setSample((prev) => ({ ...prev, rewrite: rw }));
+          setUsage(sumUsage(base, rw?.usage));
           setStage("rewritten");
         })
-        .catch(() => setStage("checked"));
+        .catch(() => {
+          setUsage(base);
+          setStage("checked");
+        });
     } else if (s.rewrite) {
+      setUsage(sumUsage(base, s.rewrite.usage));
       setStage("rewritten");
+    } else {
+      setUsage(base);
     }
   }, []);
 
@@ -319,7 +335,7 @@ export default function WorkbenchPage() {
         </div>
       </div>
 
-      <StatusBar meta={{ tokens: "tokens 9,254 / 1,198", elapsed: "15.7s" }} />
+      <StatusBar usage={usage} />
     </div>
   );
 }

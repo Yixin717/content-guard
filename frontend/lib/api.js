@@ -44,6 +44,8 @@ function normalizeRewrite(rw) {
     rounds: rw.rounds || 1,
     before: rw.before_violations,
     after: rw.after_violations,
+    // 后端真实消耗；mock 没有，就是 null，不许补一个假数字
+    usage: rw.usage || null,
   };
 }
 
@@ -66,10 +68,10 @@ export async function generate(brief, tone) {
       method: "POST",
       body: { brief, tone, platform: "xiaohongshu" },
     });
-    return data.drafts;
+    return { drafts: data.drafts || [], usage: data.usage || null };
   }
   await sleep(900);
-  return DRAFTS;
+  return { drafts: DRAFTS, usage: null };
 }
 
 /* ---------- 检查 ---------- */
@@ -80,6 +82,7 @@ export async function check(content) {
       ...res,
       violations: (res.violations || []).map(normalizeDraft),
       rewrite: null,
+      usage: res.usage || null,
     };
   }
   await sleep(600);

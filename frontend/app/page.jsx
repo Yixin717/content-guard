@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon";
 import StatusBar from "@/components/StatusBar";
 import TopBar from "@/components/TopBar";
-import { check, generate } from "@/lib/api";
-import { RECENT, RULE_COUNT } from "@/lib/mock";
+import { check, generate, history } from "@/lib/api";
+import { RULE_COUNT } from "@/lib/mock";
 import { K, setJSON } from "@/lib/store";
 
 const SAMPLE_TEXT =
@@ -21,10 +21,18 @@ export default function EntryPage() {
   const [tone, setTone] = useState("像朋友聊天");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [recent, setRecent] = useState(null);
 
   useEffect(() => {
     const m = new URLSearchParams(window.location.search).get("mode");
     if (m === "write") setMode("write");
+  }, []);
+
+  // 「最近」读真实历史（后端没起时 api 层才退回样例，见 lib/api.js）
+  useEffect(() => {
+    history()
+      .then((items) => setRecent(items || []))
+      .catch(() => setRecent([]));
   }, []);
 
   async function onCheck() {
@@ -45,8 +53,9 @@ export default function EntryPage() {
     setError("");
     setBusy("generate");
     try {
-      const drafts = await generate(`${brief}\n价格与活动：${price}\n语气：${tone}`);
+      const { drafts, usage } = await generate(`${brief}\n价格与活动：${price}\n语气：${tone}`);
       setJSON(K.drafts, drafts);
+      setJSON(K.genUsage, usage);
       router.push("/drafts");
     } catch (e) {
       setError(e.message || "生成失败，请重试");
@@ -140,14 +149,19 @@ export default function EntryPage() {
 
               <div className="recent">
                 <h2>最近</h2>
-                {RECENT.length === 0 && <p className="meta">还没有记录</p>}
-                {RECENT.map((r) => (
-                  <div className="recent-row" key={r.title} onClick={() => router.push("/history")}>
-                    <span className="t">{r.title}</span>
-                    <span className="n" style={r.n ? undefined : { color: "var(--ink-40)" }}>
-                      {r.n ? `${r.n} 处问题` : "通过"}
+                {!recent && <p className="meta">加载中…</p>}
+                {recent && recent.length === 0 && <p className="meta">还没有记录</p>}
+                {(recent || []).map((r) => (
+                  <div
+                    className="recent-row"
+                    key={r.audit_id ?? r.draft_id}
+                    onClick={() => router.push("/history")}
+                  >
+                    <span className="t">{r.title || (r.final_content || "").slice(0, 24) || "（无标题）"}</span>
+                    <span className="n" style={{ color: "var(--ink-40)" }}>
+                      {r.angle_name || "已确认"}
                     </span>
-                    <span className="d">{r.date}</span>
+                    <span className="d">{String(r.created_at || "").replace("T", " ").slice(5, 16)}</span>
                   </div>
                 ))}
               </div>

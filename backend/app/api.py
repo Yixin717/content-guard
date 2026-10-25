@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+import logging
+import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -38,6 +40,46 @@ from .schemas import (
 )
 
 ALLOWED_CATEGORIES = {"absolute", "false_claim", "platform"}
+
+
+# ---- 用量日志：一行一条，journalctl 里能直接和页面上的数字对上 ----
+# 自己挂 handler 且不向上传播：uvicorn 的 logging 配置各不相同，这样能保证一定进 stderr。
+usage_logger = logging.getLogger("content_guard.usage")
+if not usage_logger.handlers:
+    _handler = logging.StreamHandler(sys.stderr)
+    _handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+    usage_logger.addHandler(_handler)
+    usage_logger.setLevel(logging.INFO)
+    usage_logger.propagate = False
+
+USAGE_KEYS = ("tokens_in", "tokens_out", "latency_ms", "attempts")
+
+
+def merge_usage(*usages: Optional[dict]) -> dict:
+    """把多次 LLM 调用的 usage 相加；缺失字段按 0 处理。"""
+    total = {k: 0 for k in USAGE_KEYS}
+    for u in usages:
+        for k in USAGE_KEYS:
+            total[k] += int((u or {}).get(k, 0) or 0)
+    return total
+
+
+def log_usage(path: str, usage: dict, started: float, **fields: object) -> dict:
+    """记录并补上整条请求的墙钟耗时（elapsed_ms），返回可直接塞进响应的 usage。"""
+    usage = dict(usage)
+    usage["elapsed_ms"] = int((time.time() - started) * 1000)
+    extra = "".join(f" {k}={v}" for k, v in fields.items())
+    usage_logger.info(
+        "llm_usage path=%s tokens_in=%d tokens_out=%d llm_ms=%d elapsed_ms=%d attempts=%d%s",
+        path,
+        usage["tokens_in"],
+        usage["tokens_out"],
+        usage["latency_ms"],
+        usage["elapsed_ms"],
+        usage["attempts"],
+        extra,
+    )
+    return usage
 
 
 def get_llm() -> LLM:
@@ -75,20 +117,26 @@ def generate(req: GenerateRequest, llm: LLM = Depends(get_llm)) -> GenerateRespo
     started = time.time()
     product_id = f"p_{uuid.uuid4().hex[:10]}"
     rules = load_rules()
+    # 生成只是第一步：自检、自动改写、复检都在这个请求里发生，token 必须一起算
+    task_usage = {k: 0 for k in USAGE_KEYS}
 
     try:
         drafts = generate_drafts(req.brief, tone=req.tone, platform=req.platform, llm=llm)
     except LLMError as exc:
         raise HTTPException(status_code=504, detail=f"模型调用失败，请重试或转人工：{exc}") from exc
+    for d in drafts:
+        task_usage = merge_usage(task_usage, d.usage)
 
     # ADR-003：生成即自检，命中就自动改写，通过才作为成品返回
     for d in drafts:
         try:
             first = check_text(d.title, d.script, rules=rules, llm=llm)
+            task_usage = merge_usage(task_usage, first.usage)
             fixed = len(first.violations)
             remaining = fixed
             if fixed:
                 rw = rewrite_draft(d.title, d.hook, d.script, first, rules=rules, llm=llm)
+                task_usage = merge_usage(task_usage, rw.usage)
                 d.title, d.script = rw.title, rw.script
                 remaining = len(rw.after_check.violations) if rw.after_check else fixed
             d.self_check = {
@@ -113,6 +161,7 @@ def generate(req: GenerateRequest, llm: LLM = Depends(get_llm)) -> GenerateRespo
                 },
             )
 
+    usage = log_usage("/api/generate", task_usage, started, product_id=product_id, drafts=len(drafts))
     return GenerateResponse(
         product_id=product_id,
         drafts=[
@@ -124,14 +173,16 @@ def generate(req: GenerateRequest, llm: LLM = Depends(get_llm)) -> GenerateRespo
             }
             for d in drafts
         ],
-        elapsed_ms=int((time.time() - started) * 1000),
-        tokens_in=sum(d.usage.get("tokens_in", 0) for d in drafts),
-        tokens_out=sum(d.usage.get("tokens_out", 0) for d in drafts),
+        elapsed_ms=usage["elapsed_ms"],
+        tokens_in=usage["tokens_in"],
+        tokens_out=usage["tokens_out"],
+        usage=usage,
     )
 
 
 @app.post("/api/check", response_model=CheckResponse)
 def check(req: CheckRequest, llm: LLM = Depends(get_llm)) -> CheckResponse:
+    started = time.time()
     title, content, draft_id = "", req.content or "", None
 
     if req.draft_id:
@@ -175,11 +226,13 @@ def check(req: CheckRequest, llm: LLM = Depends(get_llm)) -> CheckResponse:
 
     payload = result.to_dict()
     payload["draft_id"] = draft_id
+    payload["usage"] = log_usage("/api/check", result.usage, started, draft_id=draft_id or "-")
     return CheckResponse(**payload)
 
 
 @app.post("/api/rewrite", response_model=RewriteResponse)
 def rewrite(req: RewriteRequest, llm: LLM = Depends(get_llm)) -> RewriteResponse:
+    started = time.time()
     with _conn() as conn:
         row = db.get_draft(conn, req.draft_id)
     if row is None:
@@ -189,10 +242,19 @@ def rewrite(req: RewriteRequest, llm: LLM = Depends(get_llm)) -> RewriteResponse
     try:
         base_check = check_text(draft["title"], draft["script"], llm=llm)
         if not base_check.violations:
+            log_usage("/api/rewrite", base_check.usage, started, draft_id=req.draft_id, outcome="409_no_violation")
             raise HTTPException(status_code=409, detail="该草稿没有可确证的违规，无需改写")
         result = rewrite_draft(draft["title"], draft.get("hook", ""), draft["script"], base_check, llm=llm)
     except LLMError as exc:
         raise HTTPException(status_code=504, detail=f"改写失败，请转人工：{exc}") from exc
+
+    usage = log_usage(
+        "/api/rewrite",
+        merge_usage(base_check.usage, result.usage),
+        started,
+        draft_id=req.draft_id,
+        rounds=result.rounds,
+    )
 
     return RewriteResponse(
         draft_id=req.draft_id,
@@ -203,6 +265,7 @@ def rewrite(req: RewriteRequest, llm: LLM = Depends(get_llm)) -> RewriteResponse
         after_violations=len(result.after_check.violations) if result.after_check else 0,
         violation_reduction=result.violation_reduction,
         rounds=result.rounds,
+        usage=usage,
     )
 
 

@@ -31,6 +31,8 @@ class GenerateResponse(BaseModel):
     elapsed_ms: int
     tokens_in: int
     tokens_out: int
+    # 本次请求的真实消耗（含自检与自动改写），供前端状态条显示
+    usage: dict = {}
 
 
 class CheckRequest(BaseModel):
@@ -67,6 +69,8 @@ class CheckResponse(BaseModel):
     reason: str
     dropped_unknown_rule_ids: List[str] = []
     dropped_quotes: List[str] = []
+    # 本次请求的真实消耗，前端不得自行编造
+    usage: dict = {}
 
 
 class RewriteRequest(BaseModel):
@@ -82,6 +86,8 @@ class RewriteResponse(BaseModel):
     after_violations: int
     violation_reduction: Optional[float]
     rounds: int
+    # 含前置检查 + 改写 + 复检的全部消耗
+    usage: dict = {}
 
 
 class ConfirmRequest(BaseModel):

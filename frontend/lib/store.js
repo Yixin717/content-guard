@@ -19,4 +19,5 @@ export const K = {
   check: "cg:check",
   drafts: "cg:drafts",
   picked: "cg:picked",
+  genUsage: "cg:genUsage",
 };

@@ -11,9 +11,11 @@ import { K, getJSON, setJSON } from "@/lib/store";
 export default function DraftsPage() {
   const router = useRouter();
   const [drafts, setDrafts] = useState(null);
+  const [genUsage, setGenUsage] = useState(null);
 
   useEffect(() => {
     setDrafts(getJSON(K.drafts, DRAFTS));
+    setGenUsage(getJSON(K.genUsage));
   }, []);
 
   function pick(d) {
@@ -94,7 +96,7 @@ export default function DraftsPage() {
         )}
       </div>
 
-      <StatusBar />
+      <StatusBar usage={genUsage} />
     </div>
   );
 }
