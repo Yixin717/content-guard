@@ -35,6 +35,10 @@
   --add-bg: #e6f3fe;
 
   /* 圆角与阴影 */
+  /* 正文排版：左（原文）与右（改写）必须完全一致 */
+  --doc-size: 17px;
+  --doc-line: 1.85;
+
   --r-card: 12px;
   --r-btn: 8px;
   --r-pill: 9999px;
@@ -235,7 +239,7 @@ button:disabled { cursor: not-allowed; }
 /* ---------- 工作台三栏 ---------- */
 .workbench {
   display: grid;
-  grid-template-columns: 380px 1fr 380px;
+  grid-template-columns: 420px 1fr 420px;
   height: 100%;
   min-height: 0;
   background: var(--surface);
@@ -280,15 +284,15 @@ button:disabled { cursor: not-allowed; }
 
 /* 正文 */
 .doc {
-  padding: 4px 20px 40px;
-  font-size: 16px;
-  line-height: 1.8;
+  padding: 4px 22px 40px;
+  font-size: var(--doc-size);
+  line-height: var(--doc-line);
   color: var(--ink-100);
   outline: 0;
 }
 
 .doc .title {
-  font-size: 20px;
+  font-size: 21px;
   line-height: 1.45;
   font-weight: 600;
   letter-spacing: -0.2px;
@@ -523,8 +527,8 @@ button:disabled { cursor: not-allowed; }
 }
 
 .rewrite-text {
-  font-size: 16px;
-  line-height: 1.85;
+  font-size: var(--doc-size);
+  line-height: var(--doc-line);
   color: var(--ink-100);
 }
 
