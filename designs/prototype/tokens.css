@@ -718,3 +718,134 @@ button:disabled { cursor: not-allowed; }
   padding-top: 4px;
 }
 .form-foot .spacer { flex: 1; }
+
+
+/* ---------- 选稿（3 版草稿） ---------- */
+.drafts {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+}
+
+.drafts-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 18px 24px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.drafts-head h2 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+.drafts-head .hint { font-size: 13px; color: var(--ink-40); }
+.drafts-head .spacer { flex: 1; }
+
+.drafts-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.draft-col {
+  min-width: 0;
+  overflow-y: auto;
+  padding: 20px 22px 24px;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  transition: background 150ms ease;
+}
+
+.draft-col:last-child { border-right: 0; }
+.draft-col:hover { background: rgba(0, 0, 0, 0.015); }
+
+.draft-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.draft-angle {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--blue);
+  background: var(--sky-tint);
+  border-radius: var(--r-pill);
+  padding: 2px 9px;
+}
+
+.draft-top .spacer { flex: 1; }
+.draft-top .chars { font-size: 11px; color: var(--ink-40); }
+
+.draft-col h3 {
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  margin: 0 0 12px;
+}
+
+.draft-col .body {
+  font-size: 15px;
+  line-height: 1.85;
+  color: var(--ink-100);
+  margin: 0 0 18px;
+}
+
+.points {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  margin: 0 0 20px;
+}
+
+.points li {
+  font-size: 12px;
+  color: var(--ink-60);
+  background: #f3eee6;
+  border-radius: var(--r-pill);
+  padding: 3px 10px;
+}
+
+.draft-foot {
+  margin-top: 24px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.draft-foot .note { font-size: 11px; color: var(--ink-40); }
+.draft-foot .spacer { flex: 1; }
+
+.draft-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.draft-skeleton span {
+  display: block;
+  height: 13px;
+  border-radius: 4px;
+  background: #ece5da;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.draft-skeleton span:nth-child(2) { width: 88%; }
+.draft-skeleton span:nth-child(3) { width: 94%; }
+.draft-skeleton span:nth-child(5) { width: 70%; }

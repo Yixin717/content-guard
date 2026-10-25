@@ -90,10 +90,13 @@ function TopBar({ stage, canConfirm, onBack, entryLabel = "粘贴" }) {
   const steps =
     stage === "entry"
       ? [entryLabel]
+      : stage === "drafts"
+      ? ["生成", "选稿", "检查", "改写"]
       : stage === "checked"
       ? ["原文", "检查", "改写"]
       : ["原文", "检查", "改写", "确认"];
-  const current = stage === "entry" ? 0 : stage === "checked" ? 1 : stage === "rewritten" ? 3 : 2;
+  const current =
+    stage === "entry" ? 0 : stage === "drafts" ? 1 : stage === "checked" ? 1 : stage === "rewritten" ? 3 : 2;
 
   return (
     <div className="topbar">
@@ -112,7 +115,7 @@ function TopBar({ stage, canConfirm, onBack, entryLabel = "粘贴" }) {
         ))}
       </div>
       <div className="spacer" />
-      {stage !== "entry" && (
+      {stage !== "entry" && stage !== "drafts" && (
         <>
           <button className="btn btn-text btn-sm" title="回到原文编辑">
             <Icon name="edit" /> 编辑原文
@@ -127,7 +130,7 @@ function TopBar({ stage, canConfirm, onBack, entryLabel = "粘贴" }) {
 }
 
 /* ---------- 入口页 ---------- */
-function Entry({ onStart, mode, setMode }) {
+function Entry({ onStart, onGenerate, mode, setMode }) {
   const [text, setText] = useState(
     "姐妹们，这条裤子全网最低价！三天根治大腿根的痘印，国家级品质，加V领福利。我自己穿了三个月，洗完不皱，垂感一直在。69 两条，周末截止。"
   );
@@ -159,7 +162,7 @@ function Entry({ onStart, mode, setMode }) {
             </div>
 
             <div className="form-foot">
-              <button className="btn btn-primary" onClick={() => onStart("bad")}>
+              <button className="btn btn-primary" onClick={onGenerate}>
                 生成 3 版 <Icon name="arrow" size={14} />
               </button>
               <button className="btn btn-text btn-sm" onClick={() => setMode("check")}>
@@ -439,10 +442,89 @@ function RewriteColumn({ sample, stage, onRewrite }) {
   );
 }
 
+/* ---------- 选稿：生成后的 3 版 ---------- */
+function DraftPicker({ onPick, onRegenerate }) {
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 900);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <div className="drafts">
+      <div className="drafts-head">
+        <h2>{loading ? "正在生成 3 版…" : "3 版草稿"}</h2>
+        <span className="hint">
+          {loading ? "按 40 条规则约束写作，约 10 秒" : "已按 40 条规则约束生成，选一版继续检查"}
+        </span>
+        <div className="spacer" />
+        {!loading && (
+          <button className="btn btn-text btn-sm" onClick={onRegenerate}>
+            重新生成
+          </button>
+        )}
+      </div>
+
+      <div className="drafts-grid">
+        {DRAFTS.map((d) => (
+          <div className="draft-col" key={d.angle}>
+            <div className="draft-top">
+              <span className="draft-angle">{d.angleName}</span>
+              <div className="spacer" />
+              {!loading && <span className="chars mono">{d.text.length} 字</span>}
+            </div>
+
+            {loading ? (
+              <div className="draft-skeleton">
+                <span /><span /><span /><span /><span />
+              </div>
+            ) : (
+              <>
+                <h3>{d.title}</h3>
+                <p className="body">{d.text}</p>
+                <ul className="points">
+                  {d.points.map((p) => (
+                    <li key={p}>{p}</li>
+                  ))}
+                </ul>
+                <div className="draft-foot">
+                  <span className="note">AI 辅助生成</span>
+                  <div className="spacer" />
+                  <button className="btn btn-ghost btn-sm" onClick={() => onPick(d)}>
+                    用这版 <Icon name="arrow" size={13} />
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- 工作台 ---------- */
-function Workbench({ initialSample, initialStage, onBack }) {
+function Workbench({ initialSample, initialStage, onBack, draft }) {
   const [sampleKey, setSampleKey] = useState(initialSample || "bad");
-  const sample = sampleKey === "bad" ? SAMPLE_BAD : SAMPLE_CLEAN;
+  const sample = draft
+    ? {
+        title: draft.title,
+        text: draft.text,
+        violations: draft.violations || [],
+        rewrite: draft.rewrite || null,
+        coverage: {
+          rules: RULE_COUNT,
+          manual: [
+            "商品资质：材质与成分是否与描述相符",
+            "账号报备：是否已走品牌合作报备",
+            "图片与视频：本次仅检查文本",
+          ],
+        },
+      }
+    : sampleKey === "bad"
+    ? SAMPLE_BAD
+    : SAMPLE_CLEAN;
   const [stage, setStage] = useState(
     initialStage || (sample.violations.length ? "rewritten" : "checked")
   );
@@ -501,7 +583,7 @@ function StatusBar({ sample, stage }) {
       <span className="dot">·</span>
       <span>法条核验 20 / 平台官方 19 / 待补 1</span>
       <span className="spacer" />
-      {stage === "rewritten" && sample.rewrite ? (
+      {stage === "rewritten" && sample && sample.rewrite ? (
         <>
           <span className="mono">tokens 9,254 / 1,198</span>
           <span className="dot">·</span>
@@ -517,26 +599,51 @@ function StatusBar({ sample, stage }) {
 /* ---------- 根 ---------- */
 function App() {
   const params = new URLSearchParams(location.search);
-  const initialView = params.get("view") === "workbench" ? "workbench" : "entry";
+  const viewParam = params.get("view");
+  const initialView = viewParam === "workbench" || viewParam === "drafts" ? viewParam : "entry";
   const [view, setView] = useState(initialView);
   const [entryMode, setEntryMode] = useState(params.get("mode") === "write" ? "write" : "check");
+  const draftParam = params.get("draft");
+  const [pickedDraft, setPickedDraft] = useState(
+    draftParam ? DRAFTS.find((d) => d.angle === draftParam) || null : null
+  );
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-      {view === "entry" ? (
+      {view === "drafts" ? (
+        <>
+          <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+            <TopBar stage="drafts" canConfirm={false} onBack={() => setView("entry")} />
+            <DraftPicker
+              onPick={(d) => {
+                setPickedDraft(d);
+                setView("workbench");
+              }}
+              onRegenerate={() => setView("entry")}
+            />
+            <StatusBar />
+          </div>
+        </>
+      ) : view === "entry" ? (
         <>
           <TopBar
             stage="entry"
             entryLabel={entryMode === "write" ? "生成" : "粘贴"}
             canConfirm={false}
           />
-          <Entry onStart={() => setView("workbench")} mode={entryMode} setMode={setEntryMode} />
+          <Entry
+            onStart={() => setView("workbench")}
+            onGenerate={() => setView("drafts")}
+            mode={entryMode}
+            setMode={setEntryMode}
+          />
         </>
       ) : (
         <Workbench
           initialSample={params.get("sample")}
           initialStage={params.get("stage")}
           onBack={() => setView("entry")}
+          draft={pickedDraft}
         />
       )}
     </div>
