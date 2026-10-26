@@ -4,7 +4,7 @@
 
 **为什么做**：1–3 人的小商家团队没有专职合规，通常是「发布后被限流」才发现问题，且平台只说"涉嫌违规"，不说哪句话、违反哪条。这个项目把合规从"发布后检查"前移到"生成时就有护栏"。
 
-**线上 Demo**：**http://43.142.12.100/** ｜ **当前状态**：D1–D6 完成 —— 规则库 40 条（逐字可溯源）+ CLI + FastAPI/SQLite + **Next.js 前端**（入口 / 选稿 / 工作台 / 历史 / 规则）。
+**线上 Demo**：**http://43.142.12.100/** ｜ **当前状态**：D0–D6 完成 + 两轮用户反馈迭代 + 工程收尾（AI 接口限流、每日备份）—— 规则库 40 条（逐字可溯源）+ CLI + FastAPI/SQLite + **Next.js 前端**（入口 / 选稿 / 工作台 / 历史 / 规则）。**还差两件交付物：PRD、评测集**（见 [D3 交接文档](docs/handover-D3.md)）。
 
 **技术栈**：FastAPI + SQLite + Next.js + Nginx + systemd，部署于腾讯云 CVM；模型 DeepSeek `deepseek-chat`。
 
@@ -67,7 +67,7 @@ npm run build    # 静态导出到 out/，D6 交给 Nginx
 | GET | `/health` | 健康检查（返回模型名与规则条数） |
 | POST | `/api/generate` | `{brief, tone?}` → 3 版草稿（含自检与自动改写） |
 | POST | `/api/check` | `{draft_id}` 或 `{content}` → 违规 / 待确认 / 疑似（只检查） |
-| POST | `/api/analyze` | 同参数 → **检查 + 逐条改写 + 复检，一次返回**；改动条数恒等于违规条数（ADR-009） |
+| POST | `/api/analyze` | 同参数 → **原文双检 + 逐条改写，一次返回**；改动条数恒等于违规条数；不把改写后的复检当结论（ADR-009） |
 | POST | `/api/rewrite` | `{draft_id}` → 改写 + 复检 + diff |
 | POST | `/api/confirm` | `{draft_id, final_content}` → 幂等确认，返回审计 id |
 | GET | `/api/history?limit=20` | 这台设备查过的记录（查过就算，按 `X-Owner-Id` 隔离） |
@@ -113,7 +113,7 @@ python3 scripts/verify_rules.py --check-urls  # 额外检查来源链接是否 2
 
 | 想知道什么 | 看哪里 |
 |---|---|
-| 现在做到哪了、怎么接着做 | **[D2 交接文档](docs/handover-D2.md)** ← 先看这个 |
+| 现在做到哪了、怎么接着做 | **[D3 交接文档](docs/handover-D3.md)** ← 先看这个 |
 | 前端长什么样（结构与风格） | [UI 结构说明](docs/ui-structure.md) · [UI 风格落地](docs/ui-style.md) |
 | 整体计划与每日目标 | [14 天执行计划](docs/plan.md) |
 | 每天做了什么 | [开发日志](docs/log.md) |
