@@ -31,9 +31,17 @@ async function request(path, { method = "GET", body } = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  // 后端/网关出错时不一定是 JSON（限流 429 可能是 Nginx 直出），别让 JSON.parse 把错误吞成崩溃
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
+  }
   if (!res.ok) {
-    const detail = (data && data.detail) || `HTTP ${res.status}`;
+    const fallback =
+      res.status === 429 ? "请求太频繁了，请稍后再试" : `HTTP ${res.status}`;
+    const detail = (data && data.detail) || fallback;
     throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
   }
   return data;

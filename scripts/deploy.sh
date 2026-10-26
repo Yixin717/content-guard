@@ -18,18 +18,19 @@ echo "==> 2/6 备份旧站点并准备目录"
 $REMOTE "STAMP=\$(date +%F-%H%M); sudo cp -a /etc/nginx/sites-available ~/nginx-backup-\$STAMP 2>/dev/null || true; sudo cp -a /var/www ~/var-www-backup-\$STAMP 2>/dev/null || true; echo \"已备份到 ~/nginx-backup-\$STAMP 与 ~/var-www-backup-\$STAMP\""
 $REMOTE "sudo mkdir -p /var/www/content-guard && sudo chown -R ${USER_NAME}:${USER_NAME} /var/www/content-guard && mkdir -p ~/content-guard"
 
-echo "==> 3/6 同步静态文件与后端代码"
+echo "==> 3/7 同步静态文件、后端代码与运维脚本"
 rsync -az --delete "$ROOT/frontend/out/" "${USER_NAME}@${HOST}:/var/www/content-guard/"
 rsync -az --exclude '.venv' --exclude '__pycache__' --exclude '*.db' \
   "$ROOT/backend/" "${USER_NAME}@${HOST}:~/content-guard/backend/"
 rsync -az "$ROOT/rules.csv" "${USER_NAME}@${HOST}:~/content-guard/rules.csv"
 rsync -az "$ROOT/data/" --exclude '*.db' "${USER_NAME}@${HOST}:~/content-guard/data/"
+rsync -az "$ROOT/scripts/" --exclude '__pycache__' "${USER_NAME}@${HOST}:~/content-guard/scripts/"
 scp "$ROOT/.env" "${USER_NAME}@${HOST}:~/content-guard/backend/.env"
 
-echo "==> 4/6 安装 Python 依赖"
+echo "==> 4/7 安装 Python 依赖"
 $REMOTE "cd ~/content-guard/backend && (test -d .venv || python3 -m venv .venv) && .venv/bin/pip install --quiet -r requirements.txt"
 
-echo "==> 5/6 安装 Nginx 站点与 systemd 服务"
+echo "==> 5/7 安装 Nginx 站点与 systemd 服务"
 scp "$ROOT/deploy/nginx-content-guard.conf" "${USER_NAME}@${HOST}:/tmp/content-guard.nginx"
 scp "$ROOT/deploy/content-guard.service" "${USER_NAME}@${HOST}:/tmp/content-guard.service"
 $REMOTE "sudo mv /tmp/content-guard.nginx /etc/nginx/sites-available/content-guard \
@@ -42,8 +43,20 @@ $REMOTE "sudo mv /tmp/content-guard.nginx /etc/nginx/sites-available/content-gua
   && sudo systemctl enable --now content-guard \
   && sudo systemctl restart content-guard"
 
-echo "==> 6/6 健康检查"
+echo "==> 6/7 安装每日数据库备份（cron）"
+$REMOTE "chmod +x ~/content-guard/scripts/backup_db.sh"
+$REMOTE "bash ~/content-guard/scripts/backup_db.sh"
+printf '%s\n' \
+  'MAILTO=""' \
+  'SHELL=/bin/bash' \
+  'PATH=/usr/local/bin:/usr/bin:/bin' \
+  '# 每天 03:00 备份 SQLite，保留 14 天；日志在 ~/content-guard-backups/backup.log' \
+  '0 3 * * * ubuntu /home/ubuntu/content-guard/scripts/backup_db.sh >> /home/ubuntu/content-guard-backups/backup.log 2>&1' \
+  | $REMOTE "sudo tee /etc/cron.d/content-guard-backup >/dev/null && sudo chmod 644 /etc/cron.d/content-guard-backup && sudo systemctl is-active cron >/dev/null && echo '备份定时任务已安装'"
+
+echo "==> 7/7 健康检查"
 sleep 3
 curl -s "http://${HOST}/health" || { echo "健康检查失败，登录看日志：sudo journalctl -u content-guard -n 50"; exit 1; }
 echo
+$REMOTE "ls -lt ~/content-guard-backups/*.db.gz 2>/dev/null | head -3"
 echo "✅ 部署完成：http://${HOST}/"
