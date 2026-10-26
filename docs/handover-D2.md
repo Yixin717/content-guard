@@ -32,10 +32,11 @@
 | 前端页面 | 5 个 + 全局错误页 | `frontend/app/` |
 | 检查-改写一致性 | 改动条数 = 违规条数（后端强制，`unresolved` 单独标）；问题按**原文顺序**编号 | `POST /api/analyze`、`backend/tests/test_api.py` |
 | 线上健康 | `{"status":"ok","model":"deepseek-chat","rules":40}` | `curl http://43.142.12.100/health` |
-| 线上版本 | **已部署 ADR-008 + ADR-009** | 工作台无「改写中」；状态条无模型名 |
+| 线上版本 | **已部署 ADR-008/009/010/011** | 无「改写中」；状态条无模型名；AI 接口受限流保护 |
 | 线上对账 | analyze 5817/689（5.2s，3 次调用）→ 4 处违规 / 4 条改动，编号 1:1 | 2026-10-25 21:06 实测 |
 | 线上改写链路 | 实测 4 处 → 0 处（1 轮），`start/end` 与 `after` 完全一致 | `POST /api/analyze` |
 | 评测样本 | **1 条**（`data/eval_cases/001-zara-jacket.json`） | `ls data/eval_cases` |
+| 限流 / 备份 | AI 接口 10 次/分钟（第 11 次 429）；每日 03:00 备份，保留 14 天 | `curl` 连发 / `~/content-guard-backups/` |
 | CI | 3 个 job 全绿 | `31415ca`/`5a756e1`/`f8cc484` 的 run 均 success |
 
 
@@ -123,9 +124,9 @@
 | ~~B2~~ | ~~首页"最近"是静态 mock 列表~~ | `frontend/app/page.jsx` | ✅ **已修**：改读 `GET /api/history`（标题 / 来源 / 确认时间） |
 | **B3** | mock 模式下确认接口用假 `draft_id` | `frontend/lib/api.js`（`confirm`） | 未修。接真后端会 404；线上 `USE_MOCK=0` 故不受影响 |
 | **B4** | `/api/generate` 约 19s，前端只有"生成中…" | `frontend/app/page.jsx`（`busy` 态） | 未修。ADR-003 要求分阶段进度（生成中/自检中/修复中），未实现 |
-| **B5** | 无 HTTPS、无 API 限流 | `deploy/nginx-content-guard.conf` | 未修。明文传输；`/api/generate` 公网可刷（每次约 2 分钱） |
+| **B5** | 无 HTTPS、~~无 API 限流~~ | `deploy/nginx-content-guard.conf` | **限流已修**（ADR-011，第 11 次 429）；**HTTPS 仍未做**（等域名决策） |
 | B6 | `PLT-002 诱导互动` 仍是 `platform_pending` | `rules.csv` | 未修。该条引用不可逐字验证 |
-| B7 | SQLite 无定时备份 | `data/content_guard.db` | 未修。服务器故障即丢数据 |
+| ~~B7~~ | ~~SQLite 无定时备份~~ | `data/content_guard.db` | ✅ **已修**（ADR-011）：每日 03:00 + 保留 14 天 + 恢复演练；边界：备份与库同机，异地备份未做 |
 
 ### 5.2 坑（踩过的，带位置）
 
@@ -198,9 +199,10 @@
 - 首页「最近」与历史页：标题 + 几处问题 + 状态 + 时间，点击恢复
 - **验收**：同设备查两次 → 两条；另一设备 → 空；另一设备打开 event → 404；确认后该条变「已确认」（28 passed）
 
-### ③ 限流 + HTTPS 前置
-- Nginx 加 `limit_req`（按 IP，如 10 次/分钟），超限返回 429
-- **验收**：连续快速请求 `/api/generate` 第 11 次返回 429；把测试命令与结果写进 `docs/deploy.md`。
+### ③ ~~限流~~（已完成）+ HTTPS 前置
+- ✅ 限流：AI 接口 10 次/分钟，第 11 次 429（ADR-011，验收见 `docs/deploy.md` §四之二）
+- ✅ 备份：每日 03:00，保留 14 天，含恢复演练
+- ⏳ **HTTPS 未做**：没有域名。2026 年起 Let's Encrypt 支持公网 IP 证书（短期 6 天、需自动续期），或走域名 + 备案（1–3 周）。**这是唯一还挂着的部署项**。
 
 ### ④ 评测集 12 条 + 跑第一轮指标
 - 从用户日常笔记补到 12 条，写 `eval/run_eval.py`
@@ -243,6 +245,8 @@ curl -s http://43.142.12.100/health        # 期望 rules: 40
 | 本地静态预览 | `python3 -m http.server 4321 --directory frontend/out` |
 | DeepSeek key | 本地 `.env`；线上 `~/content-guard/backend/.env` |
 | 用量对账 | `sudo journalctl -u content-guard \| grep llm_usage`（线上）、直接看终端 stderr（本地） |
+| 备份目录 | `~/content-guard-backups/`（14 天，03:00，`backup.log`） |
+| 限流配置 | `deploy/nginx-content-guard.conf` 顶部 `limit_req_zone` |
 
 > 起服务前先 `lsof -nP -iTCP:<port> -sTCP:LISTEN` 看一眼：本机经常有旧 uvicorn 占着 8000/8010，静态预览也可能已被占用。
 

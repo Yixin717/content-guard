@@ -46,6 +46,48 @@ HOST=43.142.12.100 bash scripts/deploy.sh
 - 页面数据来自线上 API（规则页显示 40 条，非 mock 的 7 条）
 - 2026-10-25 重新部署（ADR-008）：`/api/check` → `2442/89`、`/api/rewrite` → `5406/406`，`journalctl -u content-guard | grep llm_usage` 两条日志与响应一致；页面状态条 `7,848 / 495`、`5.4s`
 
+## 四之二、限流与备份（2026-10-26）
+
+**限流**（`deploy/nginx-content-guard.conf`）
+- 只作用于会调模型的四个接口：`/api/generate`、`/api/analyze`、`/api/check`、`/api/rewrite`
+- 每个 IP：`10r/m`，允许 9 次突发 → 连发第 11 次开始 **429**
+- 429 返回 JSON，前端会显示"请求太频繁了，请稍后再试"
+- 历史 / 规则 / 确认 / 健康检查**不限流**
+
+验收命令（空 body 不会真的调模型，只走校验）：
+
+```bash
+for i in $(seq 1 12); do
+  curl -s -o /dev/null -w "%{http_code} " -X POST http://43.142.12.100/api/analyze \
+    -H "Content-Type: application/json" -d '{}'
+done
+# 期望：422 x 10，然后 429 x 2
+```
+
+**备份**
+- 脚本：`scripts/backup_db.sh`（SQLite 在线 backup API，WAL 安全；备份后 `integrity_check` + 打表行数）
+- 位置：`~/content-guard-backups/content_guard-<时间>.db.gz`，保留 14 天
+- 定时：`/etc/cron.d/content-guard-backup`，每天 **03:00**；日志 `~/content-guard-backups/backup.log`
+- 每次 `deploy.sh` 都会先跑一次备份
+
+```bash
+bash ~/content-guard/scripts/backup_db.sh          # 手动备份
+ls -lt ~/content-guard-backups/*.db.gz | head -5  # 最近几次
+tail -20 ~/content-guard-backups/backup.log
+```
+
+**恢复演练**（每月做一次，别等真出事才试）：
+
+```bash
+LATEST=$(ls -t ~/content-guard-backups/*.db.gz | head -1)
+gzip -dc "$LATEST" > /tmp/restore.db
+python3 -c "import sqlite3;db=sqlite3.connect('/tmp/restore.db');print(db.execute('PRAGMA integrity_check').fetchone()[0])"
+```
+
+真要恢复线上：`sudo systemctl stop content-guard` → 把解压的 db 覆盖到 `~/content-guard/data/content_guard.db`（先备份现场）→ 删掉同目录 `-wal/-shm` → `start` → `curl /health`。
+
+> 边界：备份和数据库在**同一台机器**上，整机故障会一起丢。异地备份（对象存储）还没做。
+
 ## 五、常用运维命令
 
 ```bash
@@ -65,5 +107,5 @@ sudo nginx -t && sudo systemctl reload nginx
 ## 六、还没做的
 
 - **HTTPS**：目前是 HTTP。需要域名 + 证书（腾讯云免费 DV），配好后 80 → 301 → 443。
-- **限流**：`/api/generate` 无鉴权，公网可被刷（每次约 2 分钱）。可用 Nginx `limit_req` 按 IP 限速。
-- **备份**：SQLite 未做定时备份。
+- ~~**限流**：可用 Nginx `limit_req`~~ → ✅ 2026-10-26 已完成（10 次/分钟，第 11 次 429）
+- ~~**备份**：SQLite 未做定时备份~~ → ✅ 2026-10-26 已完成（每日 03:00，保留 14 天，含恢复演练）。**异地备份仍未做**
