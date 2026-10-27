@@ -1,10 +1,11 @@
-# Content Guard · 商家内容合规与生成助手
+# Content Guard · 发布前合规体检
 
-输入商品卖点 → 生成 3 版小红书短视频带货文案 → 按广告法与平台规则检查 → 每条违规指回条款 → 给出合规改写 → 人工确认后导出。
+把要发的小红书带货文案贴进来 → 按 40 条可溯源规则逐句检查 → 每条违规指回原句和条款 → 逐条改写 → 人工确认导出。
+生成只是次入口：没有文案的人可以先让 AI 写一版，生成结果会先过 40 条规则再给你。
 
-**为什么做**：1–3 人的小商家团队没有专职合规，通常是「发布后被限流」才发现问题，且平台只说"涉嫌违规"，不说哪句话、违反哪条。这个项目把合规从"发布后检查"前移到"生成时就有护栏"。
+**为什么做**：1–3 人的小商家团队没有专职合规，通常是「发布后被限流」才发现问题，且平台只说"涉嫌违规"，不说哪句话、违反哪条。这个项目把合规判断前移到发布前：先看哪句会出事，再决定发不发。
 
-**线上 Demo**：**http://43.142.12.100/** ｜ **当前状态**：D0–D6 完成 + 两轮用户反馈迭代 + 工程收尾（AI 接口限流、每日备份）—— 规则库 40 条（逐字可溯源）+ CLI + FastAPI/SQLite + **Next.js 前端**（入口 / 选稿 / 工作台 / 历史 / 规则）。**线上已部署 v1.1 与新首屏**；**评测集与两轮报告已完成**（见 [eval/report-v1.md](eval/report-v1.md)）；**PRD 初稿已写**（见 [docs/PRD.md](docs/PRD.md)，待评审）。
+**线上 Demo**：**http://43.142.12.100/** ｜ **当前状态**：工程 + 评测 + PRD 完成，线上 v1.1 —— 规则库 40 条（逐字可溯源）+ CLI + FastAPI/SQLite + **Next.js 前端**（入口 / 选稿 / 工作台 / 历史 / 规则）。**线上已部署 v1.1、新首屏与规则库入口**；评测报告见 [eval/report-v1.md](eval/report-v1.md)，PRD 见 [docs/PRD.md](docs/PRD.md)（12 页 PDF）。
 
 **技术栈**：FastAPI + SQLite + Next.js + Nginx + systemd，部署于腾讯云 CVM；模型 DeepSeek `deepseek-chat`。
 
@@ -113,7 +114,10 @@ python3 scripts/verify_rules.py --check-urls  # 额外检查来源链接是否 2
 
 | 想知道什么 | 看哪里 |
 |---|---|
-| 现在做到哪了、怎么接着做 | **[D3 交接文档](docs/handover-D3.md)** ← 先看这个 |
+| 新协作者 / AI 先看 | **[AGENTS.md](AGENTS.md)** |
+| 现在做到哪了、怎么接着做 | **[D4 交接文档](docs/handover-D4.md)** ← 先看这个 |
+| 产品要做什么、为什么 | [PRD](docs/PRD.md) · [PRD PDF](docs/PRD.pdf) |
+| 评测怎么做、结果如何 | [评测报告](eval/report-v1.md) · [评测说明](eval/README.md) |
 | 前端长什么样（结构与风格） | [UI 结构说明](docs/ui-structure.md) · [UI 风格落地](docs/ui-style.md) |
 | 整体计划与每日目标 | [14 天执行计划](docs/plan.md) |
 | 每天做了什么 | [开发日志](docs/log.md) |
@@ -126,9 +130,10 @@ python3 scripts/verify_rules.py --check-urls  # 额外检查来源链接是否 2
 
 ```
 rules.csv          规则源（40 条）
-scripts/           工具脚本（verify_rules.py）
-docs/plan.md       14 天计划
-docs/sources/      官方原文存档（引用底本）
-backend/           FastAPI 服务、规则引擎、评测脚本（D1 起）
-frontend/          Next.js 工作台 / 历史 / 规则页（D5 起）
+backend/           FastAPI + 规则引擎 + 29 个测试
+frontend/          Next.js（入口 / 选稿 / 工作台 / 历史 / 规则 + 错误页）
+eval/              评测脚本、报告、逐条结果（原始响应在 eval/runs/，不入库）
+data/eval_cases/   24 条真实评测样本
+docs/              PRD、交接、ADR、日志、来源存档、截图
+scripts/           verify_rules / deploy / backup
 ```

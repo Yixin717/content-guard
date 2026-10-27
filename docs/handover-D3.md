@@ -1,5 +1,7 @@
 # D3 交接文档
 
+> ⚠️ **历史快照**：本文件是 2026-10-26 的交接，已被 [`handover-D4.md`](handover-D4.md) 取代；数字已过时，只当过程记录看。
+>
 > 更新时间：2026-10-26 21:00（工程收尾完成：限流 + 备份）
 > 适用对象：**没参与过这个项目的新会话 / 新人**
 > 目标：只读本文件 + 它指的文件，就能无歧义接手
@@ -366,7 +368,7 @@ python3 -m http.server 4321 --directory frontend/out          # 静态预览（m
 
 | 文档 | 状态 | 用途 |
 |---|---|---|
-| **`handover-D3.md`（本文件）** | ✅ 当前权威 | 接手入口 |
+| **`handover-D3.md`（本文件）** | ⚠️ 历史快照 | 已被 `handover-D4.md` 取代 |
 | `handover-D2.md` | ⚠️ 历史快照（数字过时） | 想看 10-25 的状态 |
 | `handover-D1.md` | ⚠️ 历史快照 | 本地怎么跑、规则三档来源 |
 | `decisions.md` | ✅ 权威 | 所有"为什么这么选"（ADR-001~011） |
@@ -381,7 +383,7 @@ python3 -m http.server 4321 --directory frontend/out          # 静态预览（m
 | `ui-structure.md` / `ui-style.md` | ⚠️ 设计稿 | 改前端前读；§15 已按 ADR-009 修订 |
 | `docs/sources/` | ✅ 存档 | 法条与平台规则原文（`verify_rules.py` 的底本） |
 
-**更新规则**：改行为 → 同时更新 `handover-D3` 或 `decisions.md`；改数字 → 当场核对后再写；改前端 → 先读 `ui-structure`。
+**更新规则**：改行为 → 同时更新 `handover-D4` 或 `decisions.md`；改数字 → 当场核对后再写；改前端 → 先读 `ui-structure`。
 
 ---
 

@@ -1,7 +1,7 @@
 # 评测（eval）
 
 > 目的：回答「它到底准不准」，而不是在简历上写一个没有定义的百分比。
-> 详细的方法与取舍见 `docs/handover-D3.md` §6.1；面试版解读见 `eval/report-v1.md`。
+> 详细的方法与取舍见 `docs/handover-D4.md` §5；面试版解读见 `eval/report-v1.md`。
 
 ## 一次评测的完整流程
 
