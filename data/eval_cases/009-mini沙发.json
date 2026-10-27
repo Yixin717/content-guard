@@ -1,0 +1,19 @@
+{
+  "id": "009-mini沙发",
+  "split": "main",
+  "source": "自己刷到",
+  "scene": "家居",
+  "brief": "规矩不能坏！选了这个mini沙发才不烧心！",
+  "draft": "规矩不能坏！选了这个mini沙发才不烧心！\n出门可以端着，回家必须窝着！\n小朋友：我的窝！大朋友：挪挪～\n\t\n新品mini人类狗窝上线啦~🛋\n\t\n靠背五档随心调，\n坐着追剧，躺着小憩💤\n\t\n公仔棉＋45D高密海绵双层填充，\n软乎乎又有承托力\n\t\n内置钢架不用靠墙，\n阳台晒暖，卧室躺懒，走到哪带到哪\n\t\n规矩不能坏，舒服不能改，\n选择这个mini沙发，窝着不烧心～🤍",
+  "proposed": [],
+  "ground_truth": [],
+  "expected_action": "unknown",
+  "notes": "",
+  "negatives": [
+    {
+      "quote": "走到哪带到哪",
+      "why": "主观使用场景描述"
+    }
+  ],
+  "edge_items": []
+}

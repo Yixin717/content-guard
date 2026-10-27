@@ -23,7 +23,7 @@ rsync -az --delete "$ROOT/frontend/out/" "${USER_NAME}@${HOST}:/var/www/content-
 rsync -az --exclude '.venv' --exclude '__pycache__' --exclude '*.db' \
   "$ROOT/backend/" "${USER_NAME}@${HOST}:~/content-guard/backend/"
 rsync -az "$ROOT/rules.csv" "${USER_NAME}@${HOST}:~/content-guard/rules.csv"
-rsync -az "$ROOT/data/" --exclude '*.db' "${USER_NAME}@${HOST}:~/content-guard/data/"
+rsync -az "$ROOT/data/" --exclude '*.db' --exclude '*.db-*' "${USER_NAME}@${HOST}:~/content-guard/data/"
 rsync -az "$ROOT/scripts/" --exclude '__pycache__' "${USER_NAME}@${HOST}:~/content-guard/scripts/"
 scp "$ROOT/.env" "${USER_NAME}@${HOST}:~/content-guard/backend/.env"
 

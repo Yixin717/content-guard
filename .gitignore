@@ -26,7 +26,9 @@ pnpm-debug.log*
 *.db-journal
 *.sqlite
 *.sqlite3
-eval/*.json
+# 评测原始响应与中间产物不入库；报告（.md）与脚本入库
+# 样本在 data/eval_cases/，不要放 eval/（见 backlog B-009）
+eval/runs/
 
 # macOS
 .DS_Store
@@ -34,3 +36,6 @@ eval/*.json
 # 编辑器
 .idea/
 .vscode/
+
+# PRD 的本地预览产物（由 Markdown 导出；交付用 PRD.pdf）
+docs/PRD.html
