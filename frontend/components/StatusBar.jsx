@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { RULE_COUNT } from "@/lib/mock";
 import { hasUsage } from "@/lib/usage";
 
@@ -13,7 +14,7 @@ export default function StatusBar({ usage }) {
 
   return (
     <div className="statusbar">
-      <span>规则库 {RULE_COUNT} 条</span>
+      <Link href="/rules/" className="status-link">规则库 {RULE_COUNT} 条</Link>
       <span className="spacer" />
       {showTokens && (
         <span className="mono hide-sm">

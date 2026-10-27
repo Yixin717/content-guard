@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import Icon from "./Icon";
 
 const STEPS = {
@@ -12,6 +13,8 @@ const STEPS = {
 
 export default function TopBar({ stage = "entry", entryLabel = "粘贴", canConfirm, onConfirm, onBack }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const onRules = pathname === "/rules" || pathname === "/rules/";
   const steps = stage === "entry" ? [entryLabel] : STEPS[stage] || [];
   const current = stage === "entry" ? 0 : stage === "drafts" ? 1 : stage === "rewritten" ? 3 : 1;
   const showActions = stage !== "entry" && stage !== "drafts";
@@ -33,6 +36,11 @@ export default function TopBar({ stage = "entry", entryLabel = "粘贴", canConf
         ))}
       </div>
       <div className="spacer" />
+      {!onRules && (
+        <Link href="/rules/" className="btn btn-text btn-sm">
+          规则库
+        </Link>
+      )}
       {showActions && (
         <>
           <button className="btn btn-text btn-sm" onClick={() => router.push("/")}>

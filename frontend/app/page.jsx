@@ -164,10 +164,8 @@ export default function EntryPage() {
         ) : (
           <div className="entry-wrap">
             <div className="entry">
-              <h1>发布前，先过一遍</h1>
-              <p className="sub">
-                把要发的小红书文案贴进来，我告诉你哪一句会出事、违反哪一条，并给出改好的版本。
-              </p>
+              <h1>Content Guard</h1>
+              <p className="sub">发布前先过一遍，帮你稳稳过关！</p>
 
               <div className="composer">
                 <textarea
